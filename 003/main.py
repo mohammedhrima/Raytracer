@@ -32,7 +32,7 @@ class Vector:
         assert not isinstance(other, Vector)
         return Vector(self.x * other, self.y * other, self.z * other)
 
-    # right mu l
+    # right mul
     def __rmul__(self, other):
         # call left mul
         return self.__mul__(other)
@@ -67,26 +67,47 @@ class Image:
 
 
 class Color(Vector):
+    @classmethod
+    def from_hex(cls, hexcolor = "#000000"):
+        x = int([hexcolor[1:3]], 16)
+        y = int(hexcolor[3: 5], 16)
+        z = int(hexcolor[5: 6], 16)
+        return cls(x, y, z)
+
+class Point(Vector):
     pass
 
+class Sphere:
+    def __init__(self, center, radius, material) :
+        self.center = center
+        self.radius = radius
+        self.material = material
+    def intersects(self, ray):
+        # check if the ray intersects this sphere
+        # then return distance form intersections to center
+        # else return None
+        sphere_to_ray = ray.origin - self.center
+        b = 2 * ray.direction.dot_product(sphere_to_ray)
+        c = sphere_to_ray.dot_product(sphere_to_ray) - self.radius * self.radius
+        discriminant = b*b - 4 * c
+        
+        if discriminant >= 0:
+            dist = (-b - math.sqrt(discriminant)) / 2
+            if dist > 0:
+                return dist
+        return None
 
 def main():
-    WIDTH = 3
-    HEIGHT = 2
-    img = Image(WIDTH, HEIGHT)
-    red = Color(x=1, y=0, z=0)
-    green = Color(x=0, y=1, z=0)
-    blue = Color(x=0, y=0, z=1)
-    img.set_pixel(0, 0, red)
-    img.set_pixel(1, 0, green)
-    img.set_pixel(2, 0, blue)
-
-    img.set_pixel(0, 1, red+blue)
-    img.set_pixel(1, 1, green + blue + green)
-    img.set_pixel(2, 1, red * 0.001)
+    WIDTH = 320
+    HEIGHT = 200
+    camera = Vector(0, 0, -1)
+    objects = [Sphere(Point(0,0,0),0.5), Color.from_hex("#FF0000")]
+    scene = Scene(camera, objects, WIDTH, HEIGHT)
+    engine = RenderEngine()
+    image = engine.render(scene)
 
     with open("test.ppm", "w") as img_file:
-        img.write_ppm(img_file)
+        image.write_ppm(img_file)
 
 if __name__ == "__main__":
     main()
