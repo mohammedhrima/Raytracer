@@ -9,7 +9,7 @@ Player p2;
 void my_sleep(float time)
 {
     float x = 0.0;
-    while(x < time)
+    while (x < time)
         x += 0.05;
 }
 
@@ -18,7 +18,24 @@ int draw(Var *var)
     my_sleep(30000);
     clear_screen(var);
     draw_player(var, &p1);
-    // draw_player(var, &p2);
+    // if (p1.jumping == 10)
+    // {
+    //     p1.ny = p1.y - 30;
+    //     // p1.jumping = 0;
+    //     // p1.ny = p1.ny - p1.v > 0 ? p1.ny - p1.v : HEIGHT - p1.v;
+    // }
+    // if (p1.jumping > 0 && p1.v > 0.0)
+    // {
+    //     p1.v *= 2;
+    //     p1.jumping--;
+    // }
+    // if (p1.v > 10)
+    //     p1.jumping = -10;
+    // if (p1.jumping < 0)
+    // {
+    //     p1.v = 0.05;
+    //     p1.jumping++;
+    // }
     mlx_put_image_to_window(var->mlx, var->win, var->image.ptr, 0, 0);
     return (0);
 }
@@ -35,7 +52,7 @@ int main(void)
                                           &var->image.line_length,
                                           &var->image.endian);
 
-    p1 = new_player(150.0, 150.0, RED);
+    p1 = new_player(10.0, 2, RED);
 
     mlx_loop_hook(var->mlx, draw, var);
     mlx_hook(var->win, 3, 3, clicked_key, var);

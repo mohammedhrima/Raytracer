@@ -8,6 +8,8 @@ Player new_player(float x, float y, int color)
     p.nx = x;
     p.ny = y;
     p.color = color;
+    p.jumping = 0;
+    p.v = 0.05;
     return p;
 }
 
@@ -100,12 +102,16 @@ int clicked_key(int keycode, Var *var)
     case ESC:
         exit(0);
         break;
+    // case JUMP:
+    // {
+    //     p1.jumping = 10;
+    //     p1.v = 0.05;
+    // }
+    break;
     default:
         break;
     }
-    // Vector br = Normalized(new_vector(p2.x - p1.x, p2.y - p1.y));
-    // printf("<%f>\n", DotProduct(new_vector(p2.x, p2.y), new_vector(p1.x, p1.y)));
-    // printf("< %f, %f >\n", br.x, br.y);
+
     return 0;
 }
 
@@ -117,8 +123,8 @@ void clear_screen(Var *var)
 void draw_player(Var *var, Player *p)
 {
 #if 1
-    p->x = p->x + (p->nx - p->x) * 0.05;
-    p->y = p->y + (p->ny - p->y) * 0.05;
+    p->x = p->x + (p->nx - p->x) * p->v;
+    p->y = p->y + (p->ny - p->y) * p->v;
 #else
     p->x = p->nx;
     p->y = p->ny;

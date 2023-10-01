@@ -18,8 +18,7 @@
 #define LEFT 65361
 #define RIGHT 65363
 #define ESC 65307
-
-
+#define JUMP 106
 
 typedef struct
 {
@@ -51,12 +50,16 @@ typedef struct
 {
     float x;
     float y;
+    float nx;
+    float ny;
     int color;
+    int jumping;
+    float v;
 } Player;
 
 extern float step;
 extern float x;
-extern float y ;
+extern float y;
 extern Player p2;
 extern Player p1;
 
@@ -78,5 +81,6 @@ void clear_screen(Var *var);
 void draw_player(Var *var, Player *p);
 Player new_player(float x, float y, int color);
 float DotProduct(Vector l, Vector r);
+int draw(Var *var);
 
 #endif
