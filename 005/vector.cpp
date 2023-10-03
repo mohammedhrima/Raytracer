@@ -1,114 +1,142 @@
-#include <cmath>
 #include <iostream>
+#include <cmath>
+#include <stdbool.h>
+#include <memory>
+#include <vector>
+#include <limits>
 
-class vec3
+#ifndef VECTOR
+#define VECTOR
+// Usings
+using std::make_shared;
+using std::shared_ptr;
+using std::sqrt;
+
+// Constants
+const double infinity = std::numeric_limits<double>::infinity();
+const double pi = 3.1415926535897932385;
+
+// Utility Functions
+inline double degrees_to_radians(double degrees)
+{
+    return degrees * pi / 180.0;
+}
+
+
+class Vector
 {
 public:
     double e[3];
-
-    vec3() : e{0, 0, 0} {}
-    vec3(double e0, double e1, double e2) : e{e0, e1, e2} {}
-
-    double get_x() const { return e[0]; }
-    double get_y() const { return e[1]; }
-    double get_z() const { return e[2]; }
-
-    vec3 operator-() const { return vec3(-e[0], -e[1], -e[2]); }
-    // double operator[](int i) const { return e[i]; }
-    double &operator[](int i) { return e[i]; }
-
-    vec3 &operator+=(const vec3 &v)
-    {
-        e[0] += v.e[0];
-        e[1] += v.e[1];
-        e[2] += v.e[2];
-        return *this;
-    }
-
-    vec3 &operator*=(double t)
-    {
-        e[0] *= t;
-        e[1] *= t;
-        e[2] *= t;
-        return *this;
-    }
-
-    vec3 &operator/=(double t)
-    {
-        return *this *= 1 / t;
-    }
-
-    double length() const
-    {
-        return sqrt(length_squared());
-    }
-
-    double length_squared() const
-    {
-        return e[0] * e[0] + e[1] * e[1] + e[2] * e[2];
-    }
+    Vector();
+    Vector(double, double, double);
+    double get_x() const;
+    double get_y() const;
+    double get_z() const;
+    Vector operator-() const;
+    double operator[](int) const;
+    double &operator[](int);
+    Vector &operator+=(const Vector &);
+    Vector &operator*=(double);
+    Vector &operator/=(double);
+    double length() const;
+    double length_squared() const;
 };
 
-using point3 = vec3;
-
-inline std::ostream &operator<<(std::ostream &out, const vec3 &v)
+Vector::Vector() : e{0, 0, 0} {};
+Vector::Vector(double e1, double e2, double e3) : e{e1, e2, e3} {};
+double Vector::get_x() const
 {
-    return out << v.e[0] << ' ' << v.e[1] << ' ' << v.e[2];
+    return e[0];
+}
+double Vector::get_y() const
+{
+    return e[1];
+}
+double Vector::get_z() const
+{
+    return e[2];
+}
+Vector Vector::operator-() const
+{
+    return Vector(-e[0], -e[1], -e[2]);
+}
+double Vector::operator[](int i) const
+{
+    return e[i];
+}
+double &Vector::operator[](int i)
+{
+    return e[i];
+}
+Vector &Vector::operator+=(const Vector &v)
+{
+    e[0] += v.e[0];
+    e[1] += v.e[1];
+    e[2] += v.e[2];
+    return *this;
+}
+Vector &Vector::operator*=(double t)
+{
+    e[0] *= t;
+    e[1] *= t;
+    e[2] *= t;
+    return *this;
+}
+Vector &Vector::operator/=(double t)
+{
+    return *this *= 1 / t;
+}
+double Vector::length() const
+{
+    return std::sqrt(length_squared());
+}
+double Vector::length_squared() const
+{
+    return e[0] * e[0] + e[1] * e[1] + e[2] * e[2];
 }
 
-inline vec3 operator+(const vec3 &u, const vec3 &v)
-{
-    return vec3(u.e[0] + v.e[0], u.e[1] + v.e[1], u.e[2] + v.e[2]);
-}
+using Point = Vector;
 
-inline vec3 operator-(const vec3 &u, const vec3 &v)
+inline std::ostream &operator<<(std::ostream &out, const Vector &v)
 {
-    return vec3(u.e[0] - v.e[0], u.e[1] - v.e[1], u.e[2] - v.e[2]);
+    return out << v.e[0] << " " << v.e[1] << " " << v.e[2];
 }
-
-inline vec3 operator*(const vec3 &u, const vec3 &v)
+inline Vector operator+(const Vector &u, const Vector &v)
 {
-    return vec3(u.e[0] * v.e[0], u.e[1] * v.e[1], u.e[2] * v.e[2]);
+    return Vector(u.e[0] + v.e[0], u.e[1] + v.e[1], u.e[2] + v.e[2]);
 }
-
-inline vec3 operator*(double t, const vec3 &v)
+inline Vector operator-(const Vector &u, const Vector &v)
 {
-    return vec3(t * v.e[0], t * v.e[1], t * v.e[2]);
+    return Vector(u.e[0] - v.e[0], u.e[1] - v.e[1], u.e[2] - v.e[2]);
 }
-
-inline vec3 operator*(const vec3 &v, double t)
+inline Vector operator*(const Vector &u, const Vector &v)
+{
+    return Vector(u.e[0] * v.e[0], u.e[1] * v.e[1], u.e[2] * v.e[2]);
+}
+inline Vector operator*(double t, const Vector &v)
+{
+    return Vector(t * v.e[0], t * v.e[1], t * v.e[2]);
+}
+inline Vector operator*(Vector v, double t)
 {
     return t * v;
 }
-
-inline vec3 operator/(vec3 v, double t)
+inline Vector operator/(Vector v, double t)
 {
     return (1 / t) * v;
 }
-
-inline double dot(const vec3 &u, const vec3 &v)
+inline double dot(const Vector &u, const Vector &v)
 {
     return u.e[0] * v.e[0] + u.e[1] * v.e[1] + u.e[2] * v.e[2];
 }
-
-inline vec3 cross(const vec3 &u, const vec3 &v)
+inline Vector cross(const Vector &u, const Vector &v)
 {
-    return vec3(u.e[1] * v.e[2] - u.e[2] * v.e[1],
-                u.e[2] * v.e[0] - u.e[0] * v.e[2],
-                u.e[0] * v.e[1] - u.e[1] * v.e[0]);
+    return Vector(u.e[1] * v.e[2] - u.e[2] * v.e[1],
+                  u.e[2] * v.e[0] - u.e[0] * v.e[2],
+                  u.e[0] * v.e[1] - u.e[1] * v.e[0]);
 }
-
-inline vec3 unit_vector(vec3 v)
+inline Vector unit_vector(Vector v)
 {
     return v / v.length();
 }
-
-using color = vec3;
-
-void write_color(std::ostream &out, color pixel_color)
-{
-    // Write the translated [0,255] value of each color component.
-    out << (int)(255.999 * pixel_color.get_x()) << ' '
-        << (int)(255.999 * pixel_color.get_y()) << ' '
-        << (int)(255.999 * pixel_color.get_z()) << '\n';
-}
+#endif

@@ -1,0 +1,1 @@
+c++ main.cpp && ./a.out > image.ppm

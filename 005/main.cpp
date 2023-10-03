@@ -1,20 +1,28 @@
-#include "ray.cpp"
+#include "camera.cpp"
 
-int main()
+Color ray_color(const Ray &ray, const Hittable &world)
 {
-    // Image
-    int image_width = 256;
-    int image_height = 256;
-    // Render
-    std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
-    for (int j = 0; j < image_height; ++j)
-    {
-        std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
-        for (int i = 0; i < image_width; ++i)
-        {
-            color pixel_color = color(double(i) / (image_width - 1), double(j) / (image_height - 1), 0);
-            write_color(std::cout, pixel_color);
-        }
-    }
-    std::clog << "\rDone.                 \n";
+    Hit_record rec;
+    Interval val(0, infinity);
+    if (world.hit(ray, val, rec))
+        return 0.5 * (rec.normal + Color(1, 1, 1));
+
+    Vector unit_direction = unit_vector(ray.direction());
+    double a = 0.5 * (unit_direction.get_y() + 1.0);
+    return (1.0 - a) * Color(1.0, 1.0, 1.0) + a * Color(0.5, 0.7, 1.0);
+}
+
+int main(void)
+{
+
+    // World
+    Hittable_list world;
+    world.add(make_shared<Sphere>(Point(0, 0, -1), 0.5));
+    world.add(make_shared<Sphere>(Point(0, -100.5, -1), 100));
+
+    Camera cam;
+    cam.aspect_ratio = 16.0 / 9.0;
+    cam.width = 400;
+
+    cam.render(world);
 }
