@@ -45,6 +45,8 @@ public:
     // methods
     double length() const;
     double length_squared() const;
+    static Vector random();
+    static Vector random(double min, double max);
 };
 
 Vector::Vector() : e{0, 0, 0} {};
@@ -95,6 +97,14 @@ double Vector::length_squared() const
 {
     return (e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
 }
+Vector Vector::random()
+{
+    return Vector(random_double(), random_double(), random_double());
+}
+Vector Vector::random(double min, double max)
+{
+    return Vector(random_double(min, max), random_double(min, max), random_double(min, max));
+}
 inline std::ostream &operator<<(std::ostream &out, const Vector &v)
 {
     return out << v.e[0] << ' ' << v.e[1] << ' ' << v.e[2];
@@ -136,6 +146,26 @@ inline Vector cross(const Vector &u, const Vector &v)
 inline Vector unit_vector(Vector v)
 {
     return v / v.length();
+}
+inline Vector random_in_unit_sphere()
+{
+    while (true)
+    {
+        Vector v = Vector::random(-1, 1);
+        if (v.length_squared() < 1)
+            return v;
+    }
+}
+inline Vector random_unit_vector()
+{
+    return unit_vector(random_in_unit_sphere());
+}
+inline Vector random_on_hemisphere(const Vector &normal)
+{
+    Vector on_unit_sphere = random_unit_vector();
+    if (dot(on_unit_sphere, normal) > 0.0)
+        return on_unit_sphere;
+    return -on_unit_sphere;
 }
 
 using Point = Vector;
@@ -332,6 +362,7 @@ public:
     double aspect_ratio = 1.0;
     int image_width = 100;
     int samples_per_pixel = 100;
+    int max_depth = 10;
 
     void render(const Hittable &world);
 
@@ -342,7 +373,7 @@ private:
     Vector pixel_u;
     Vector pixel_v;
     void initialize();
-    Color ray_color(const Ray &ray, const Hittable &world) const;
+    Color ray_color(const Ray &ray, int depth, const Hittable &world) const;
     Ray get_ray(int h, int w);
     Vector pixel_sample_square() const;
 };
@@ -378,7 +409,7 @@ Ray Camera::get_ray(int w, int h)
     return Ray(camera_center, ray_direction);
 }
 
-Color Camera::ray_color(const Ray &ray, const Hittable &world) const
+Color Camera::ray_color(const Ray &ray, int depth, const Hittable &world) const
 {
     // draw circle on viewport
     // the sphere is in position (0,0,-1) , radius 0.5
@@ -386,7 +417,9 @@ Color Camera::ray_color(const Ray &ray, const Hittable &world) const
     // Point sphere_center = Point(0, 0, -1);
     // double x = hit_sphere(sphere_center, 0.5, ray);
     Hit_record rec;
-
+    // If we've exceeded the ray bounce limit, no more light is gathered.
+    if (depth <= 0)
+        return Color(0, 0, 0);
 #if 0
     if (world.hit(ray, Interval(0, infinity), rec))
         return Color(1, 0, 0);
@@ -394,8 +427,13 @@ Color Camera::ray_color(const Ray &ray, const Hittable &world) const
     double a = 0.5 * (vector_unit.y() + 1.0);
     return a * Color(1, 1, 1);
 #else
-    if (world.hit(ray, Interval(0, infinity), rec))
-        return 0.5 * (rec.normal + Color(1, 1, 1));
+    if (world.hit(ray, Interval(0.001, infinity), rec))
+    {
+        Vector direction = random_on_hemisphere(rec.normal);
+        // return 0.5 * (rec.normal + Color(1, 1, 1));
+        Ray ndray = Ray(rec.point, direction);
+        return 0.5 * ray_color(ndray, depth - 1, world);
+    }
     Vector vector_unit = unit_vector(ray.direction());
     double a = 0.5 * (vector_unit.y() + 1.0);
     return (1.0 - a) * Color(1.0, 1.0, 1.0) + a * Color(0.5, 0.7, 1.0);
@@ -415,13 +453,13 @@ void Camera::render(const Hittable &world)
         {
 #if 1
             Color pixel_color(0, 0, 0);
+            Point pixel_center = first_pixel + (h * pixel_v) + (w * pixel_u);
             for (int s = 0; s < samples_per_pixel; s++)
             {
-                Point pixel_center = first_pixel + (h * pixel_v) + (w * pixel_u);
                 Point pixel_sample = pixel_center + pixel_sample_square();
                 Vector ray_direction = pixel_sample - camera_center;
                 Ray ray(camera_center, ray_direction);
-                pixel_color += ray_color(ray, world);
+                pixel_color += ray_color(ray, max_depth, world);
             }
             write_color(std::cout, pixel_color, samples_per_pixel);
             std::cout << "\n";
@@ -475,6 +513,8 @@ int main(void)
 
     Camera cam;
     cam.aspect_ratio = 16.0 / 9.0;
-    cam.image_width = 400;
+    cam.image_width = 1920;
+    cam.samples_per_pixel = 100;
+    cam.max_depth = 50;
     cam.render(world);
 }
