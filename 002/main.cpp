@@ -326,8 +326,6 @@ Color ray_color(const Ray &ray, int depth, World &world)
 
         Vector dir;
 
-        // Vector dir =
-
         if (world.spheres[hit].material->type == Metal)
         {
             Vector ray_dir_normal = unit_vector(ray.direction());
@@ -454,9 +452,9 @@ int main(void)
 
     add_sphere(world, Point(0, -1000, 0), 1000, m);
 
-    for (int a = -11; a < 11; a++)
+    for (int a = -4; a < 4; a++)
     {
-        for (int b = -11; b < 11; b++)
+        for (int b = -4; b < 4; b++)
         {
             auto choose_mat = random_double();
             Point center(a + 0.9 * random_double(), 0.2, b + 0.9 * random_double());
@@ -471,7 +469,6 @@ int main(void)
                     // diffuse
                     auto albedo = random_color() * random_color();
                     sphere_material = add_material(world, Lambertian);
-
                     sphere_material->attenuation = albedo;
                 }
                 else
@@ -479,7 +476,6 @@ int main(void)
                     // metal
                     auto albedo = random_color();
                     auto fuzz = random_double(0, 0.5);
-
                     sphere_material = add_material(world, Metal);
                     sphere_material->attenuation = albedo;
                 }

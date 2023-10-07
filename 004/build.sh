@@ -1,0 +1,1 @@
+cc main.c -fsanitize=address -g3 -lmlx -lXext -lX11 -lm -O3 && ./a.out
