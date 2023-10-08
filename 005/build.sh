@@ -1,0 +1,1 @@
+c++ main.cpp -fsanitize=address -g3 -O3 && ./a.out > image.ppm
