@@ -1,5 +1,28 @@
 #include <cmath>
 #include <iostream>
+#include <limits.h>
+#include <float.h>
+#include <cstdlib>
+#define BUG 0
+
+const double pi = 3.1415926535897932385;
+double degrees_to_radians(double degrees)
+{
+    return degrees * pi / 180.0;
+}
+
+double random_double()
+{
+    // Returns a random real in [0,1).
+    return rand() / (RAND_MAX + 1.0);
+}
+
+double random_double(double min, double max)
+{
+    // Returns a random real in [min,max).
+    return min + (max - min) * random_double();
+}
+
 using std::sqrt;
 
 class Coor
@@ -101,12 +124,52 @@ Coor unit_vector(Coor v)
     return v / v.length();
 }
 
-using Color = Coor;
+Coor random_vector()
+{
+    return Coor(random_double(), random_double(), random_double());
+}
+
+Coor random_vector(double min, double max)
+{
+    return Coor(random_double(min, max), random_double(min, max), random_double(min, max));
+}
+
+// ?
+Coor random_in_unit_sphere()
+{
+    while (true)
+    {
+        Coor v = random_vector(-1, 1);
+        if (v.length_squared() < 1)
+            return v;
+    }
+}
+// ?
+Coor random_unit_vector()
+{
+    return unit_vector(random_in_unit_sphere());
+}
+// ?
+Coor random_on_hemisphere(Coor &norm)
+{
+    Coor unit_sphere = random_unit_vector();
+    if (dot(unit_sphere, norm) > 0.0)
+        return unit_sphere;
+    return -unit_sphere;
+}
+
+typedef Coor Color;
+
+
 void write_color(Color color)
 {
-    std::cout << (int)(255.999 * color.x) << ' '
-              << (int)(255.999 * color.y) << ' '
-              << (int)(255.999 * color.z) << '\n';
+    double x = color.x;
+    double y = color.y;
+    double z = color.z;
+
+    std::cout << (int)(255.999 * sqrt(color.x)) << ' '
+              << (int)(255.999 * sqrt(color.y)) << ' '
+              << (int)(255.999 * sqrt(color.z)) << '\n';
 }
 
 class Ray
