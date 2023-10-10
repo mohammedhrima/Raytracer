@@ -1,5 +1,6 @@
-**/__pycache__
 **/a.out
 **/a.out.dSYM
 **/.vscode
 **/*.ppm
+**/.DS_Store
+**/run.sh

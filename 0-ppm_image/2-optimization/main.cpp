@@ -148,6 +148,7 @@ public:
         Coor viewport_upper_left = center - Coor(0, 0, focal_length) - viewport_u / 2 - viewport_v / 2;
         first_pixel = viewport_upper_left + 0.5 * (pixel_u + pixel_v);
     }
+    // TODO: to be verified
     Coor reflect(Coor v, Coor n)
     {
         return v - 2 * dot(v, n) * n;
@@ -161,16 +162,13 @@ public:
         Coor r_out_parallel = -sqrt(fabs(1.0 - r_out_perp.length_squared())) * n;
         return r_out_perp + r_out_parallel;
     }
-
     /*
     absorb:
     bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& reflray){
             auto scatter_direction = rec.normal + random_unit_vector();
-
             // Catch degenerate scatter direction
             if (scatter_direction.near_zero())
                 scatter_direction = rec.normal;
-
             reflray = ray(rec.p, scatter_direction);
             attenuation = albedo;
             return true;
@@ -188,22 +186,17 @@ public:
     bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered){
         attenuation = color(1.0, 1.0, 1.0);
         double refraction_ratio = rec.front_face ? (1.0/ir) : ir;
-
         vec3 unit_direction = unit_vector(r_in.direction());
         double cos_theta = fmin(dot(-unit_direction, rec.normal), 1.0);
         double sin_theta = sqrt(1.0 - cos_theta*cos_theta);
-
         bool cannot_refract = refraction_ratio * sin_theta > 1.0;
         vec3 direction;
-
         if (cannot_refract)
             direction = reflect(unit_direction, rec.normal);
         else
             direction = refract(unit_direction, rec.normal, refraction_ratio);
-
         scattered = ray(rec.p, direction);
     }
-
     */
 
     Color ray_color(Ray &ray, int depth, Scene &world)
@@ -262,7 +255,7 @@ public:
                     direction = refract(unit_dir, rec.normal, refraction_ratio);
 
                 reflray = Ray(rec.point, direction);
-                 return reflcol * ray_color(reflray, depth - 1, world);
+                return reflcol * ray_color(reflray, depth - 1, world);
             }
             return reflcol;
         }
