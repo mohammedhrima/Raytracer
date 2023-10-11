@@ -7,21 +7,6 @@ typedef enum
     Absorb_
 } Mat;
 
-class Rec
-{
-public:
-    Coor point;
-    Coor normal;
-    double t;
-    bool front_face;
-
-    void set_face_normal(Ray &ray, Coor &norm)
-    {
-        front_face = dot(ray.dir, norm) < 0;
-        normal = front_face ? norm : -norm;
-    }
-};
-
 class Sphere
 {
 public:
@@ -30,9 +15,7 @@ public:
     Color color;
     Mat type;
 
-    Sphere()
-    {
-    }
+    Sphere() {}
     Sphere(Coor center_, double radius_, Color color_, Mat type_)
     {
         center = center_;
@@ -40,7 +23,7 @@ public:
         color = color_;
         type = type_;
     };
-    bool hit(Ray &ray, double tmin, double tmax, Rec &rec)
+    bool hitSphere(Ray &ray, double tmin, double tmax, Coor &point, Coor &normal, bool &front_face, double &t)
     {
         Coor oc = ray.org - center;
         double a = ray.dir.length_squared();
@@ -51,16 +34,16 @@ public:
         if (delta < 0.0)
             return false;
 
-        double t = (-half_b - sqrt(delta)) / a;
+        t = (-half_b - sqrt(delta)) / a;
         if (t <= tmin || t >= tmax)
             t = (-half_b + sqrt(delta)) / a;
         if (t <= tmin || t >= tmax)
             return false;
 
-        rec.t = t;
-        rec.point = ray.at(t);
-        Coor norm = (rec.point - center) / radius;
-        rec.set_face_normal(ray, norm);
+        point = ray.at(t);
+        normal = (point - center) / radius;
+        front_face = dot(ray.dir, normal) < 0;
+        normal = front_face ? normal : -normal;
 
         return true;
     };
@@ -72,10 +55,7 @@ public:
     Sphere *objects[100];
     int pos;
 
-    Scene()
-    {
-        pos = 0;
-    };
+    Scene() : pos(0){};
     ~Scene(){};
     void add(Sphere *object)
     {
@@ -86,21 +66,21 @@ public:
         for (int i = 0; i < pos; i++)
             delete objects[i];
     }
-    bool hit(Ray &ray, double tmin, double tmax, Rec &rec, Color &color, Mat &is_reflec)
+    bool hit(Ray &ray, double tmin, double tmax, Coor &point, Coor &normal, bool &front_face, Color &color, Mat &is_reflec)
     {
-        Rec tmp;
+        // Rec tmp;
         bool did_hit = false;
         double closest = tmax;
+        double t;
 
         for (int i = 0; i < pos; i++)
         {
-            if (objects[i]->hit(ray, tmin, closest, tmp))
+            if (objects[i]->hitSphere(ray, tmin, closest, point, normal, front_face, t))
             {
                 color = objects[i]->color;
                 is_reflec = objects[i]->type;
                 did_hit = true;
-                closest = tmp.t;
-                rec = tmp;
+                closest = t;
             }
         }
         return did_hit;
@@ -119,112 +99,104 @@ public:
     Coor pixel_u;
     Coor pixel_v;
     int samples_per_pixel;
+    double vfov; // Vertical view angle (field of view)
+    Coor u, v, w;
+    Coor lookfrom;
+    Coor lookat;
+    Coor vup;
 
 public:
     void init()
     {
-        max_depth = 10;
-
+        max_depth = 50;
         image_width = 800;
         aspect_ratio = 16.0 / 9.0;
-        samples_per_pixel = 32;
+        samples_per_pixel = 2;
+
+        vfov = 90;                 // Vertical view angle (field of view)
+        lookfrom = Coor(-3, 10, 2); // Point camera is looking from
+        lookat = Coor(0, 0, -1);    // Point camera is looking at
+        vup = Coor(0, 1, 0);       // Camera-relative "up" direction
+
         image_height = (image_width / aspect_ratio);
         if (image_height < 1)
             image_height = 1;
-        double focal_length = 1.0;
-        double viewport_height = 2.0;
+        double focal_length = (lookfrom - lookat).length();
+        // TODO: to be checked
+        double theta = degrees_to_radians(vfov);
+        double h = tan(theta / 2);
+
+        double viewport_height = 2.0 * h * focal_length;
         double viewport_width = viewport_height * ((double)image_width / image_height);
 
-        center = Coor(0, 0, 0);
+        // center = Coor(0, 0, 0);
+        center = lookfrom;
+        // Calculate the u,v,w unit basis vectors for the camera coordinate frame.
+        w = unit_vector(lookfrom - lookat);
+        u = unit_vector(cross(vup, w));
+        v = cross(w, u);
+
         // viewport vectors
-        Coor viewport_u = Coor(viewport_width, 0, 0);
-        Coor viewport_v = Coor(0, -viewport_height, 0);
+        Coor viewport_u = viewport_width * u;
+        Coor viewport_v = -viewport_height * v;
 
         // pixel to pixel step
         pixel_u = viewport_u / image_width;
         pixel_v = viewport_v / image_height;
 
         // upper left pixel
-        Coor viewport_upper_left = center - Coor(0, 0, focal_length) - viewport_u / 2 - viewport_v / 2;
+        Coor viewport_upper_left = center - focal_length * w - viewport_u / 2 - viewport_v / 2;
         first_pixel = viewport_upper_left + 0.5 * (pixel_u + pixel_v);
     }
-    // TODO: to be verified
     Coor reflect(Coor v, Coor n)
     {
         return v - 2 * dot(v, n) * n;
     }
-
-    // TODO: to be verified
-    Coor refract(const Coor &uv, const Coor &n, double etai_over_etat)
+    Coor refract(Coor v, Coor n, float refraction_ratio)
     {
-        double cos_theta = fmin(dot(-uv, n), 1.0);
-        Coor r_out_perp = etai_over_etat * (uv + cos_theta * n);
-        Coor r_out_parallel = -sqrt(fabs(1.0 - r_out_perp.length_squared())) * n;
-        return r_out_perp + r_out_parallel;
+        Coor Perp = (v - dot(v, n) * n) * refraction_ratio;
+        Coor Para = -n * sqrt(1 - pow(Perp.length(), 2));
+        return Para + Perp;
     }
-    /*
-    absorb:
-    bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& reflray){
-            auto scatter_direction = rec.normal + random_unit_vector();
-            // Catch degenerate scatter direction
-            if (scatter_direction.near_zero())
-                scatter_direction = rec.normal;
-            reflray = ray(rec.p, scatter_direction);
-            attenuation = albedo;
-            return true;
-        }
 
-    Reflect:
-    bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered){
-            Coor reflected = reflect(unit_vector(r_in.direction()), rec.normal);
-            scattered = ray(rec.p, reflected);
-            attenuation = albedo;
-            return true;
-        }
-
-    Refract:
-    bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered){
-        attenuation = color(1.0, 1.0, 1.0);
-        double refraction_ratio = rec.front_face ? (1.0/ir) : ir;
-        vec3 unit_direction = unit_vector(r_in.direction());
-        double cos_theta = fmin(dot(-unit_direction, rec.normal), 1.0);
-        double sin_theta = sqrt(1.0 - cos_theta*cos_theta);
-        bool cannot_refract = refraction_ratio * sin_theta > 1.0;
-        vec3 direction;
-        if (cannot_refract)
-            direction = reflect(unit_direction, rec.normal);
-        else
-            direction = refract(unit_direction, rec.normal, refraction_ratio);
-        scattered = ray(rec.p, direction);
+    // TODO : to be verified
+    double reflectance(double cosine, double ref_idx)
+    {
+        // Use Schlick's approximation for reflectance.
+        double r0 = (1 - ref_idx) / (1 + ref_idx);
+        r0 = r0 * r0;
+        return r0 + (1 - r0) * pow((1 - cosine), 5);
     }
-    */
 
     Color ray_color(Ray &ray, int depth, Scene &world)
     {
         if (depth <= 0)
             return Color(0, 0, 0);
 
-        Rec rec;
         Color reflcol;
         Mat mat_type;
-        if (world.hit(ray, 0.0001f, DBL_MAX, rec, reflcol, mat_type))
+        Coor point;
+        Coor normal;
+        bool front_face;
+
+        if (world.hit(ray, 0.0001f, DBL_MAX, point, normal, front_face, reflcol, mat_type))
         {
             Ray reflray;
             if (mat_type == Reflectif_)
             {
-                Coor reflected = reflect(unit_vector(ray.dir), rec.normal);
+                Coor reflected = reflect(unit_vector(ray.dir), unit_vector(normal));
 #if 0
                 // shadowed reflection
-                reflray = Ray(rec.point, reflected + 0.5 * random_unit_vector());
+                reflray = Ray(point, reflected + 0.5 * random_unit_vector());
 #else
                 // clear reflection
-                reflray = Ray(rec.point, reflected);
+                reflray = Ray(point, reflected);
 #endif
                 return reflcol * ray_color(reflray, depth - 1, world);
             }
             if (mat_type == Absorb_)
             {
-                Coor scatt = rec.normal + random_unit_vector();
+                Coor scatt = normal + random_unit_vector();
 #if 0          
                 // TODO: to be verified
                 // check if scatt is near 0
@@ -232,29 +204,25 @@ public:
                 if (fabs(scatt.x) < s && fabs(scatt.y) < s && fabs(scatt.z) < s)
                     scatt = rec.normal;
 #endif
-                reflray = Ray(rec.point, scatt);
+                reflray = Ray(point, scatt);
                 return reflcol * ray_color(reflray, depth - 1, world);
             }
             // TODO: to be verified
             if (mat_type == Refractif_)
             {
-                Color atten = Color(1, 1, 1);
                 double index_of_refraction = 1.5;
-                double refraction_ratio = rec.front_face ? (1.0 / index_of_refraction) : index_of_refraction;
+                double refraction_ratio = front_face ? (1.0 / index_of_refraction) : index_of_refraction;
 
-                Coor unit_dir = unit_vector(ray.dir);
-                double cos_theta = fmin(dot(-unit_dir, rec.normal), 1.0);
+                // Coor unit_dir = unit_vector(ray.dir);
+                double cos_theta = dot(ray.dir, normal) / (ray.dir.length() * normal.length()); // fmin(dot(-unit_dir, normal), 1.0);
                 double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
-                bool cannot_refract = refraction_ratio * sin_theta > 1.0;
                 Coor direction;
-
-                if (cannot_refract)
-                    direction = reflect(unit_dir, rec.normal);
+                if (refraction_ratio * sin_theta > 1.0 || reflectance(cos_theta, refraction_ratio) > random_double())
+                    direction = reflect(unit_vector(ray.dir), unit_vector(normal));
                 else
-                    direction = refract(unit_dir, rec.normal, refraction_ratio);
-
-                reflray = Ray(rec.point, direction);
+                    direction = refract(unit_vector(ray.dir), unit_vector(normal), refraction_ratio);
+                reflray = Ray(point, direction);
                 return reflcol * ray_color(reflray, depth - 1, world);
             }
             return reflcol;
@@ -296,15 +264,18 @@ int main()
 {
     // World
     Scene world;
-    /*
-    Reflectif_ = 11,
-        Absorb_*/
-    world.add(new Sphere(Coor(0, -100.5, -1), 100, Color(0.8, 0.8, 0.0), Absorb_));
-    world.add(new Sphere(Coor(0.0, 0.0, -1.0), 0.5, Color(0.7, 0.3, 0.3), Absorb_));
-    world.add(new Sphere(Coor(-1.0, 0.0, -1.0), 0.5, Color(0.8, 0.8, 0.8), Refractif_));
-    world.add(new Sphere(Coor(1.0, 0.0, -1.0), 0.5, Color(0.8, 0.6, 0.2), Reflectif_));
+
+    world.add(new Sphere(Coor(0.0, -100.5, -1.0), 100.0, Color(0.8, 0.8, 0.0), Absorb_));
+    world.add(new Sphere(Coor(0.0, 0.0, -1.0), 0.5, Color(0.1, 0.2, 0.5), Absorb_));     // center
+    world.add(new Sphere(Coor(-1.0, 0.0, -1.0), 0.5, Color(1.0, 1.0, 1.0), Refractif_)); // left
+    world.add(new Sphere(Coor(1.0, 0.0, -1.0), 0.5, Color(0.8, 0.6, 0.2), Reflectif_));  // right
 
     Camera cam;
+
+    cam.vfov = 90;
+    cam.lookfrom = Coor(-2, 2, 1);
+    cam.lookat = Coor(0, 0, -1);
+    cam.vup = Coor(0, 1, 0);
 
     cam.render(world);
     world.clear();

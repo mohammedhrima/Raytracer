@@ -160,7 +160,6 @@ Coor random_on_hemisphere(Coor &norm)
 
 typedef Coor Color;
 
-
 void write_color(Color color)
 {
     double x = color.x;
