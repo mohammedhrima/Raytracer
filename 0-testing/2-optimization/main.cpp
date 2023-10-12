@@ -68,7 +68,6 @@ public:
     }
     bool hit(Ray &ray, double tmin, double tmax, Coor &point, Coor &normal, bool &front_face, Color &color, Mat &is_reflec)
     {
-        // Rec tmp;
         bool did_hit = false;
         double closest = tmax;
         double t;
@@ -111,11 +110,11 @@ public:
         max_depth = 50;
         image_width = 800;
         aspect_ratio = 16.0 / 9.0;
-        samples_per_pixel = 2;
+        samples_per_pixel = 32;
 
         vfov = 90;                 // Vertical view angle (field of view)
-        lookfrom = Coor(-3, 10, 2); // Point camera is looking from
-        lookat = Coor(0, 0, -1);    // Point camera is looking at
+        lookfrom = Coor(0, 0, 0); // Point camera is looking from
+        lookat = Coor(0, 0, -1);   // Point camera is looking at
         vup = Coor(0, 1, 0);       // Camera-relative "up" direction
 
         image_height = (image_width / aspect_ratio);
@@ -185,13 +184,9 @@ public:
             if (mat_type == Reflectif_)
             {
                 Coor reflected = reflect(unit_vector(ray.dir), unit_vector(normal));
-#if 0
-                // shadowed reflection
-                reflray = Ray(point, reflected + 0.5 * random_unit_vector());
-#else
-                // clear reflection
-                reflray = Ray(point, reflected);
-#endif
+                // for clear reflection, to make shawdowed reflection
+                // remove comment from the random function
+                reflray = Ray(point, reflected /*+ 0.5 * random_unit_vector()*/);
                 return reflcol * ray_color(reflray, depth - 1, world);
             }
             if (mat_type == Absorb_)
@@ -202,7 +197,7 @@ public:
                 // check if scatt is near 0
                 double s = 1e-8;
                 if (fabs(scatt.x) < s && fabs(scatt.y) < s && fabs(scatt.z) < s)
-                    scatt = rec.normal;
+                    scatt = normal;
 #endif
                 reflray = Ray(point, scatt);
                 return reflcol * ray_color(reflray, depth - 1, world);
@@ -210,17 +205,16 @@ public:
             // TODO: to be verified
             if (mat_type == Refractif_)
             {
-                double index_of_refraction = 1.5;
+                double index_of_refraction = 3.5;
                 double refraction_ratio = front_face ? (1.0 / index_of_refraction) : index_of_refraction;
 
-                // Coor unit_dir = unit_vector(ray.dir);
                 double cos_theta = dot(ray.dir, normal) / (ray.dir.length() * normal.length()); // fmin(dot(-unit_dir, normal), 1.0);
                 double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
                 Coor direction;
-                if (refraction_ratio * sin_theta > 1.0 || reflectance(cos_theta, refraction_ratio) > random_double())
-                    direction = reflect(unit_vector(ray.dir), unit_vector(normal));
-                else
+                // if (refraction_ratio * sin_theta > 1.0 || reflectance(cos_theta, refraction_ratio) > random_double())
+                //     direction = reflect(unit_vector(ray.dir), unit_vector(normal));
+                // else
                     direction = refract(unit_vector(ray.dir), unit_vector(normal), refraction_ratio);
                 reflray = Ray(point, direction);
                 return reflcol * ray_color(reflray, depth - 1, world);
@@ -266,17 +260,11 @@ int main()
     Scene world;
 
     world.add(new Sphere(Coor(0.0, -100.5, -1.0), 100.0, Color(0.8, 0.8, 0.0), Absorb_));
-    world.add(new Sphere(Coor(0.0, 0.0, -1.0), 0.5, Color(0.1, 0.2, 0.5), Absorb_));     // center
-    world.add(new Sphere(Coor(-1.0, 0.0, -1.0), 0.5, Color(1.0, 1.0, 1.0), Refractif_)); // left
-    world.add(new Sphere(Coor(1.0, 0.0, -1.0), 0.5, Color(0.8, 0.6, 0.2), Reflectif_));  // right
+    world.add(new Sphere(Coor(0.0, 0.0, -1.0), 0.5, Color(1.0, 1.0, 1.0), Refractif_));     // center
+    // world.add(new Sphere(Coor(-1.0, 0.0, -1.0), 0.5, Color(1.0, 1.0, 1.0), Refractif_)); // left
+    // world.add(new Sphere(Coor(1.0, 0.0, -1.0), 0.5, Color(0.8, 0.6, 0.2), Refractif_));  // right
 
     Camera cam;
-
-    cam.vfov = 90;
-    cam.lookfrom = Coor(-2, 2, 1);
-    cam.lookat = Coor(0, 0, -1);
-    cam.vup = Coor(0, 1, 0);
-
     cam.render(world);
     world.clear();
 }

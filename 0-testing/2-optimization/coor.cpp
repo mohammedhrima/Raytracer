@@ -134,7 +134,6 @@ Coor random_vector(double min, double max)
     return Coor(random_double(min, max), random_double(min, max), random_double(min, max));
 }
 
-// ?
 Coor random_in_unit_sphere()
 {
     while (true)
@@ -144,18 +143,9 @@ Coor random_in_unit_sphere()
             return v;
     }
 }
-// TODO: why random unit vector ?
 Coor random_unit_vector()
 {
     return unit_vector(random_in_unit_sphere());
-}
-// TODO: why random_on_hemisphere ?
-Coor random_on_hemisphere(Coor &norm)
-{
-    Coor unit_sphere = random_unit_vector();
-    if (dot(unit_sphere, norm) > 0.0)
-        return unit_sphere;
-    return -unit_sphere;
 }
 
 typedef Coor Color;
