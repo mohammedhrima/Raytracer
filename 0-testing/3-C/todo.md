@@ -1,4 +1,0 @@
-- set camera center
-- set viewport
-- set sphere coordinates
-- render sphere

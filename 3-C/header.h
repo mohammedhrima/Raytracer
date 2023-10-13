@@ -88,15 +88,18 @@ typedef struct
     // rendering
     float focal_length;
     float aspect_ratio;
+    // float vfov;
     Coor camera;
-    Coor viewport_u;
-    Coor viewport_v;
+    Coor screen_u;
+    Coor screen_v;
     Coor pixel_u;
     Coor pixel_v;
     Coor first_pixel;
     // objects
-    Sphere spheres[100];
+    Sphere spheres[500];
     int pos;
+    //view
+    Coor   u, v, w;        // Camera frame basis vectors
 } Win;
 
 

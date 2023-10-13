@@ -1,6 +1,5 @@
 #include "header.h"
 
-
 static unsigned rng_state;
 
 static const double one_over_uint_max = 1.0 / UINT_MAX;
@@ -29,39 +28,15 @@ float degrees_to_radians(float degrees)
     return degrees * pi / 180.0;
 }
 
-// float random_double1()
-// {
-//     return rand() / (RAND_MAX + 1.0);
-// }
-// float random_float(float min, float max)
-// {
-//     return min + (max - min) * random_double1();
-// }
-
 Coor new_coor(float x, float y, float z)
 {
-    // Coor *new = calloc(1, sizeof(Coor));
-    // new->x = x;
-    // new->y = y;
-    // new->z = z;
-    // return new;
     return (Coor){.x = x, .y = y, .z = z};
 }
 
-
 Color new_color(float r, float g, float b)
 {
-    // Coor *new = calloc(1, sizeof(Color));
-    // new->r = r;
-    // new->g = g;
-    // new->b = b;
-    return (Color){.r = r /255.999, .g = g/255.999, .b = b/255.999};
+    return (Color){.r = r / 255.999, .g = g / 255.999, .b = b / 255.999};
 }
-
-// Color rgb()
-// {
-
-// }
 
 Coor add_(Coor l, Coor r)
 {
@@ -90,6 +65,11 @@ Coor mul(Coor leftv, Coor rightv)
 
 Coor div_(Coor v, float t)
 {
+    if (t == 0)
+    {
+        printf("Error: dividing by 0\n");
+        exit(1);
+    }
     return mul_(1 / t, v);
 }
 
@@ -108,9 +88,20 @@ float dot(Coor u, Coor v)
     return u.x * v.x + u.y * v.y + u.z * v.z;
 }
 
+Coor cross_(Coor u, Coor v)
+{
+    return new_coor(u.y * v.z - u.z * v.y,
+                u.z * v.x - u.x * v.z,
+                u.x * v.y - u.y * v.x);
+}
+
 Coor unit_vector(Coor v)
 {
-    return div_(v, length(v));
+    float f = length(v);
+
+    if (f <= 0.0001f)
+        return (Coor){};
+    return div_(v, f);
 }
 
 Coor random_vector(float min, float max)
@@ -123,9 +114,8 @@ Coor random_in_unit_sphere()
     while (1)
     {
         Coor v = random_vector(-1, 1);
-        if (length_squared(v) < 1)
+        if (length_squared(v) <= 1)
             return v;
-        // free(v);
     }
 }
 
@@ -133,23 +123,11 @@ Coor random_unit_vector()
 {
     Coor u = random_in_unit_sphere();
     Coor v = unit_vector(u);
-    // free(u);
     return v;
 }
 
-// void write_color(Color *color)
-// {
-//     int x = (int)(255.999 * sqrt(color->x));
-//     int y = (int)(255.999 * sqrt(color->y));
-//     int z = (int)(255.999 * sqrt(color->z));
-//     printf("%d %d %d ", x, y, z);
-// }
-
 Ray new_ray(Coor org, Coor dir)
 {
-    // Ray *new = calloc(1, sizeof(Ray));
-    // new->dir = dir;
-    // new->org = org;
     return (Ray){.dir = dir, .org = org};
 }
 
