@@ -28,12 +28,12 @@ float degrees_to_radians(float degrees)
     return degrees * pi / 180.0;
 }
 
-Coor new_coor(float x, float y, float z)
+Coor coor(float x, float y, float z)
 {
     return (Coor){.x = x, .y = y, .z = z};
 }
 
-Color new_color(float r, float g, float b)
+Color color(float r, float g, float b)
 {
     return (Color){.r = r / 255.999, .g = g / 255.999, .b = b / 255.999};
 }
@@ -55,12 +55,12 @@ Coor neg_(Coor v)
 
 Coor mul_(float t, Coor v)
 {
-    return new_coor(t * v.x, t * v.y, t * v.z);
+    return coor(t * v.x, t * v.y, t * v.z);
 }
 
 Coor mul(Coor leftv, Coor rightv)
 {
-    return new_coor(leftv.x * rightv.x, leftv.y * rightv.y, leftv.z * rightv.z);
+    return coor(leftv.x * rightv.x, leftv.y * rightv.y, leftv.z * rightv.z);
 }
 
 Coor div_(Coor v, float t)
@@ -90,7 +90,7 @@ float dot(Coor u, Coor v)
 
 Coor cross_(Coor u, Coor v)
 {
-    return new_coor(u.y * v.z - u.z * v.y,
+    return coor(u.y * v.z - u.z * v.y,
                 u.z * v.x - u.x * v.z,
                 u.x * v.y - u.y * v.x);
 }
@@ -106,7 +106,7 @@ Coor unit_vector(Coor v)
 
 Coor random_vector(float min, float max)
 {
-    return new_coor(random_float(min, max), random_float(min, max), random_float(min, max));
+    return coor(random_float(min, max), random_float(min, max), random_float(min, max));
 }
 
 Coor random_in_unit_sphere()
@@ -129,11 +129,6 @@ Coor random_unit_vector()
 Ray new_ray(Coor org, Coor dir)
 {
     return (Ray){.dir = dir, .org = org};
-}
-
-void free_ray(Ray *ray)
-{
-    free(ray);
 }
 
 Coor point_at(Ray ray, float t)

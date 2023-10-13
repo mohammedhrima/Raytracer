@@ -98,9 +98,16 @@ typedef struct
     // objects
     Sphere spheres[500];
     int pos;
+    Plan plan;
     //view
-    Coor   u, v, w;        // Camera frame basis vectors
+    Coor   u, v, w;
 } Win;
 
+typedef struct 
+{
+    Coor point;
+    Coor vector1; // height
+    Coor vector2; // width
+} Plan;
 
 #endif

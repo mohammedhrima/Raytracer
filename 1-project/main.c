@@ -40,11 +40,30 @@ float reflectance(float cosine, float ref_idx)
     return r0 + (1 - r0) * pow((1 - cosine), 5);
 }
 
+// bool hit_plan(Plan plan, Ray ray)
+// {
+//     Coor point = plan.point;
+//     Coor height = plan.vector1;
+//     Coor width = plan.vector2;
+//     for(float i = 0.0 ; i < 1; i += 0.1 )
+//     {
+//         for(float j = 0.0 ; j < 1; j += 0.1 )
+//         {
+            
+//         }   
+//     }
+// }
+
 Color ray_color(Win *win, Ray ray, int depth)
 {
     if (depth == 50)
         return (Color){0, 0, 0};
+    // Plan
+    Plan plan = win->plan;
 
+
+#if 0    
+    // Sphere
     float closest = FLT_MAX;
     int hit_index = -1;
 
@@ -111,12 +130,12 @@ Color ray_color(Win *win, Ray ray, int depth)
         color = mul(color, sphere.color);
         return color;
     }
-
+#endif
     float a = 0.5 * (unit_vector(ray.dir).y + 1.0); // value in [0,1]
     float r = (1.0 - a) + a * 0.3;
     float g = (1.0 - a) + a * 0.7;
     float b = (1.0 - a) + a * 1.0;
-    return new_coor(r, g, b);
+    return coor(r, g, b);
 }
 
 int draw(void *ptr)
@@ -169,16 +188,10 @@ int main(void)
     if (HEIGHT < 1)
         HEIGHT = 1;
 
-    // view
-    // cam.vfov     = 90;
-    // cam.lookfrom = point3(-2,2,1);
-    // cam.lookat   = point3(0,0,-1);
-    // cam.vup      = vec3(0,1,0);
-
     float vfov = 20;
-    Coor lookfrom = new_coor(-2, 3, 20); // Point camera is looking from
-    Coor lookat = new_coor(0, 0, -1);    // Point camera is looking at
-    Coor vup = new_coor(0, 1, 0);        // Camera-relative "up" direction
+    Coor lookfrom = coor(-2, 3, 20); // Point camera is looking from
+    Coor lookat = coor(0, 0, -1);    // Point camera is looking at
+    Coor vup = coor(0, 1, 0);        // Camera-relative "up" direction
 
     var.camera = lookfrom; //(Coor){.x = 0, .y = 0, .z = 0};
     float focal_length = length(sub_(lookfrom, lookat));
@@ -190,10 +203,7 @@ int main(void)
     var.w = unit_vector(sub_(lookfrom, lookat));
     var.u = unit_vector(cross_(vup, var.w));
     var.v = cross_(var.w, var.u);
-    /*
-        vec3 viewport_u = viewport_width * u;    // Vector across viewport horizontal edge
-        vec3 screen_v = viewport_height * -v;
-    */
+
     var.screen_u = mul_(screen_width, var.u);        //(Coor){.x = screen_width, .y = 0, .z = 0};
     var.screen_v = mul_(screen_height, neg_(var.v)); //(Coor){.x = 0, .y = -screen_height, .z = 0};
 
@@ -207,11 +217,16 @@ int main(void)
 
     var.pos = 0;
 
-    // var.spheres[var.pos++] = new_sphere(new_coor(0, -1000, 0), 1000, new_coor(0.8, 0.8, 0.0), Absorb_);
-    var.spheres[var.pos++] = new_sphere(new_coor(0.0, -100.5, -1.0), 100, new_coor(0.8, 0.8, 0.0), Absorb_);
-    var.spheres[var.pos++] = new_sphere(new_coor(0.0, 0.0, -1.0), 0.5, new_coor(0.7, 0.3, 0.3), Absorb_);     // center
-    var.spheres[var.pos++] = new_sphere(new_coor(-1.5, 0.0, -1.0), 0.5, new_coor(0.8, 0.8, 0.8), Reflectif_); // left
-    var.spheres[var.pos++] = new_sphere(new_coor(1.5, 0.0, -1.0), 0.5, new_coor(0.8, 0.6, 0.2), Refractif_);  // right
+#if 0
+    // var.spheres[var.pos++] = new_sphere(coor(0, -1000, 0), 1000, coor(0.8, 0.8, 0.0), Absorb_);
+    var.spheres[var.pos++] = new_sphere(coor(0.0, -100.5, -1.0), 100, coor(0.8, 0.8, 0.0), Absorb_);
+    var.spheres[var.pos++] = new_sphere(coor(0.0, 0.0, -1.0), 0.5, coor(0.7, 0.3, 0.3), Absorb_);     // center
+    var.spheres[var.pos++] = new_sphere(coor(-1.5, 0.0, -1.0), 0.5, coor(0.8, 0.8, 0.8), Reflectif_); // left
+    var.spheres[var.pos++] = new_sphere(coor(1.5, 0.0, -1.0), 0.5, coor(0.8, 0.6, 0.2), Refractif_);  // right
+#endif
+    var.plan.point = coor(0, 0, 0);
+    var.plan.vector1 = coor(0, 5, 0);
+    var.plan.vector2 = coor(5, 0, 0);
 
     var.mlx = mlx_init();
     var.win = mlx_new_window(var.mlx, WIDTH, HEIGHT, "Hello world!");
