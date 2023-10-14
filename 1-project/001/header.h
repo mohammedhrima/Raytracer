@@ -52,15 +52,22 @@ typedef union
     };
 } Coor;
 
-typedef Coor Color;
+typedef Coor Col;
 
 typedef struct
 {
     Coor center;
     float radius;
-    Color color;
+    Col color;
     Mat type;
 } Sphere;
+
+typedef struct 
+{
+    Coor point;
+    Coor vector1; // height
+    Coor vector2; // width
+} Plan;
 
 typedef struct
 {
@@ -103,11 +110,6 @@ typedef struct
     Coor   u, v, w;
 } Win;
 
-typedef struct 
-{
-    Coor point;
-    Coor vector1; // height
-    Coor vector2; // width
-} Plan;
+
 
 #endif

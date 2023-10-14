@@ -33,9 +33,9 @@ Coor coor(float x, float y, float z)
     return (Coor){.x = x, .y = y, .z = z};
 }
 
-Color color(float r, float g, float b)
+Col color(float r, float g, float b)
 {
-    return (Color){.r = r / 255.999, .g = g / 255.999, .b = b / 255.999};
+    return (Col){.r = r / 255.999, .g = g / 255.999, .b = b / 255.999};
 }
 
 Coor add_(Coor l, Coor r)

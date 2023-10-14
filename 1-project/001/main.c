@@ -3,7 +3,7 @@
 int WIDTH;
 int HEIGHT;
 
-Sphere new_sphere(Coor center, float radius, Color color, Mat type)
+Sphere new_sphere(Coor center, float radius, Col color, Mat type)
 {
     Sphere new;
     new.center = center;
@@ -54,15 +54,15 @@ float reflectance(float cosine, float ref_idx)
 //     }
 // }
 
-Color ray_color(Win *win, Ray ray, int depth)
+Col ray_color(Win *win, Ray ray, int depth)
 {
     if (depth == 50)
-        return (Color){0, 0, 0};
+        return (Col){0, 0, 0};
     // Plan
     Plan plan = win->plan;
 
 
-#if 0    
+#if 1    
     // Sphere
     float closest = FLT_MAX;
     int hit_index = -1;
@@ -126,7 +126,7 @@ Color ray_color(Win *win, Ray ray, int depth)
             ndir = add_(cp_norm, ranv);
         }
         nray = new_ray(p, ndir);
-        Color color = ray_color(win, nray, depth + 1);
+        Col color = ray_color(win, nray, depth + 1);
         color = mul(color, sphere.color);
         return color;
     }
@@ -143,12 +143,12 @@ int draw(void *ptr)
     struct timespec time_start, time_end;
     clock_gettime(CLOCK_MONOTONIC, &time_start);
     Win *win = (Win *)ptr;
-    static Color *sum;
+    static Col *sum;
     static int frame;
 
     frame++;
     if (sum == NULL)
-        sum = calloc(WIDTH * HEIGHT, sizeof(Color));
+        sum = calloc(WIDTH * HEIGHT, sizeof(Col));
 #pragma omp parallel for
     for (int h = 0; h < HEIGHT; h++)
     {
@@ -157,9 +157,9 @@ int draw(void *ptr)
             Coor pixel_center = add_(add_(win->first_pixel, mul_(w + random_float(0, 1), win->pixel_u)), mul_(h + random_float(0, 1), win->pixel_v));
             Coor dir = sub_(pixel_center, win->camera);
             Ray ray = (Ray){.org = win->camera, .dir = dir};
-            Color pixel = ray_color(win, ray, 0);
+            Col pixel = ray_color(win, ray, 0);
             sum[h * WIDTH + w] = add_(sum[h * WIDTH + w], pixel);
-            Color col = div_(sum[h * WIDTH + w], (float)frame);
+            Col col = div_(sum[h * WIDTH + w], (float)frame);
             if (col.x > 1)
                 col.x = 1;
             if (col.y > 1)
@@ -217,8 +217,7 @@ int main(void)
 
     var.pos = 0;
 
-#if 0
-    // var.spheres[var.pos++] = new_sphere(coor(0, -1000, 0), 1000, coor(0.8, 0.8, 0.0), Absorb_);
+#if 1
     var.spheres[var.pos++] = new_sphere(coor(0.0, -100.5, -1.0), 100, coor(0.8, 0.8, 0.0), Absorb_);
     var.spheres[var.pos++] = new_sphere(coor(0.0, 0.0, -1.0), 0.5, coor(0.7, 0.3, 0.3), Absorb_);     // center
     var.spheres[var.pos++] = new_sphere(coor(-1.5, 0.0, -1.0), 0.5, coor(0.8, 0.8, 0.8), Reflectif_); // left
