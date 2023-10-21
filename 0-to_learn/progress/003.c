@@ -38,6 +38,7 @@ float reflectance(float cosine, float ref_idx)
     r0 = r0 * r0;
     return r0 + (1 - r0) * pow((1 - cosine), 5);
 }
+// TODO : to be optimized
 Ray render_object(Obj obj, Ray ray, float closest)
 {
     // point coordinates
@@ -46,7 +47,7 @@ Ray render_object(Obj obj, Ray ray, float closest)
 
     if (obj.type == sphere_)
         cp_norm = unit_vector(sub_vec3(p, obj.center));
-    else if (obj.type == plan_ || obj.type == triangle_)
+    else if (obj.type == plan_)
         cp_norm = obj.normal;
 
     bool same_dir = dot(cp_norm, ray.dir) >= 0;
@@ -209,21 +210,21 @@ int main(void)
     scene->first_pixel = add_vec3(upper_left, mul_vec3(0.5, add_vec3(scene->pixel_u, scene->pixel_v)));              // upper_left + 0.5 * pixel_u + 0.5 * pixel_v
 
     // add objects
-#if 1
+
     Vec3 colors[] = {
         {1, 1, 1},
         {0.92, 0.19, 0.15},
         {0.42, 0.92, 0.72},
         {0.79, 0.92, 0.23},
-        {0.23, 0.92, 0.08},
         {0.42, 0.92, 0.80},
         {0.47, 0.16, 0.92},
+        {0.42, 0.87, 0.92},
         {0.42, 0.58, 0.92},
         {0.92, 0.40, 0.30},
         {0.61, 0.75, 0.24},
-        {0.42, 0.87, 0.92},
         {0.83, 0.30, 0.92},
         {0.30, 0.92, 0.64},
+        {0.23, 0.92, 0.08},
     };
     struct
     {
@@ -231,54 +232,39 @@ int main(void)
         float rad;
         Mat mat;
     } spheres[] = {
-        {(Vec3){}, 0, 0},
         {(Vec3){0, 4.0, -1.5}, 2, Refl_},    // up
         {(Vec3){-1, 0, -2.0}, .5, Refl_},    // center
         {(Vec3){-1.5, .5, -1.0}, .5, Refl_}, // left
         {(Vec3){1.5, .5, -1.0}, .5, Refl_},  // right
     };
+
     struct
     {
         Vec3 normal;
         float dist;
         Mat mat;
     } plans[] = {
-        {(Vec3){}, 0, 0},
         {(Vec3){.0, 1.0, .0}, -3, Abs_},  // up
         {(Vec3){.0, 1.0, .0}, 0.5, Abs_}, // down
         {(Vec3){.0, 0.0, 1.0}, 5, Abs_},  // behind
         {(Vec3){1.0, .0, .0}, 2, Abs_},   // left
         {(Vec3){1.0, .0, .0}, -2, Abs_},  // right
     };
-    int i = 0;
-    while (spheres[i].mat)
+
+    scene->pos = 0;
+    for (int i = 0; i < 4; i++)
     {
-        Vec3 org = spheres[i].org;
-        float rad = spheres[i].rad;
-        Mat mat = spheres[i].mat;
-        scene->objects[scene->pos] = new_sphere(org, rad, colors[scene->pos % (sizeof(colors) / sizeof(*colors))], mat);
-        i++;
+        scene->objects[scene->pos] = new_sphere(spheres[i].org, spheres[i].rad, colors[scene->pos], spheres[i].mat);
         scene->pos++;
     }
-    i = 0;
-    while (plans[i].mat)
+    for (int i = 0; i < 5; i++)
     {
-        Vec3 normal = plans[i].normal;
-        float dist = plans[i].dist;
-        Mat mat = plans[i].mat;
-        scene->objects[scene->pos] = new_plan(normal, dist, colors[scene->pos % (sizeof(colors) / sizeof(*colors))], mat);
-        i++;
+        scene->objects[scene->pos] = new_plan(plans[i].normal, plans[i].dist, colors[scene->pos], plans[i].mat);
         scene->pos++;
     }
+
     scene->objects[0].light_intensity = 1;
     scene->objects[0].light_color = (Color){1, 1, 1};
-#endif
-    Vec3 p1, p2, p3;
-    p1 = (Vec3){1, 1, 2};
-    p2 = (Vec3){2, 1, 2};
-    p3 = (Vec3){1.5, 2, 2};
-
-    scene->objects[scene->pos++] = new_triangle(p1, p2, p3, colors[1], Abs_);
 
     win.mlx = mlx_init();
     win.win = mlx_new_window(win.mlx, win.width, win.height, "Mini Raytracer");
