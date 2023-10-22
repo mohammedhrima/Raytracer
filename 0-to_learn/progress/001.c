@@ -1,282 +1,14 @@
-#include <mlx.h>
-#include <math.h>
-#include <stdio.h>
-#include <float.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <time.h>
+#include "utils.c"
 
-#define ESC 53
-#define UP 126
-#define DOWN 125
-#define LEFT 123
-#define RIGHT 124
-#define RED 0xff0000
-
-typedef enum
-{
-    Reflectif_ = 11,
-    Refractif_,
-    Absorb_
-} Mat;
-
-typedef enum
-{
-    sphere_,
-    plan_,
-} Type;
-
-typedef union
-{
-    struct
-    {
-        float x;
-        float y;
-        float z;
-    };
-    struct
-    {
-        float r;
-        float g;
-        float b;
-    };
-} Vec3;
-
-typedef Vec3 Color;
-
-typedef struct
-{
-    Type type;
-    Mat mat;
-    Color color;
-
-    union
-    {
-        // Sphere
-        struct
-        {
-            Vec3 center;
-            float radius;
-        };
-        // Plan
-        struct
-        {
-            Vec3 normal;
-            float d;
-        };
-    };
-} Obj;
-
-typedef struct
-{
-    Vec3 org;
-    Vec3 dir;
-} Ray;
-
-typedef struct
-{
-    // rendering
-    float focal_length;
-    float aspect_ratio;
-    float view_angle;
-    Vec3 camera;
-    Vec3 screen_u;
-    Vec3 screen_v;
-    Vec3 pixel_u;
-    Vec3 pixel_v;
-    Vec3 first_pixel;
-    Vec3 u, v, w;
-    Vec3 lookfrom;
-    Vec3 lookat;
-    Vec3 vup;
-    Obj objects[100];
-    int pos;
-} Scene;
-
-typedef struct
-{
-    int width;
-    int height;
-    void *mlx;
-    void *win;
-    // image
-    void *img;
-    char *addr;
-    int bits_per_pixel;
-    int line_length;
-    int endian;
-    Scene scene;
-} Win;
-
-// mlx
-int listen(int keycode, Win *vars)
-{
-    switch (keycode)
-    {
-    case ESC:
-        mlx_destroy_window(vars->mlx, vars->win);
-        exit(0);
-    default:
-        printf("%d\n", keycode);
-    }
-    return (0);
-}
-
-// utils
-static unsigned rng_state;
-static const double one_over_uint_max = 1.0 / UINT_MAX;
-const float pi = 3.1415926535897932385;
-unsigned rand_pcg()
-{
-    unsigned state = rng_state;
-    rng_state = rng_state * 747796405u + 2891336453u;
-    unsigned word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-    return (word >> 22u) ^ word;
-}
-float random_float(float min, float max)
-{
-#if 1
-    return min + (rand_pcg() * one_over_uint_max) * (max - min);
-#else
-    return min + ((double)rand() / RAND_MAX) * (max - min);
-#endif
-}
-float degrees_to_radians(float degrees)
-{
-    return degrees * pi / 180.0;
-}
-Vec3 coor(float x, float y, float z)
-{
-    return (Vec3){.x = x, .y = y, .z = z};
-}
-Color color(float r, float g, float b)
-{
-    return (Color){.r = r / 255.999, .g = g / 255.999, .b = b / 255.999};
-}
-Vec3 add_(Vec3 l, Vec3 r)
-{
-    return (Vec3){.x = l.x + r.x, .y = l.y + r.y, .z = l.z + r.z};
-}
-Vec3 sub_(Vec3 l, Vec3 r)
-{
-    return (Vec3){.x = l.x - r.x, .y = l.y - r.y, .z = l.z - r.z};
-}
-Vec3 neg_(Vec3 v)
-{
-    return (Vec3){.x = -v.x, .y = -v.y, .z = -v.z};
-}
-Vec3 mul_(float t, Vec3 v)
-{
-    return coor(t * v.x, t * v.y, t * v.z);
-}
-Vec3 mul(Vec3 leftv, Vec3 rightv)
-{
-    return coor(leftv.x * rightv.x, leftv.y * rightv.y, leftv.z * rightv.z);
-}
-Vec3 div_(Vec3 v, float t)
-{
-    if (t == 0)
-    {
-        printf("Error: dividing by 0\n");
-        exit(1);
-    }
-    return mul_(1 / t, v);
-}
-float length_squared(Vec3 v)
-{
-    return pow(v.x, 2) + pow(v.y, 2) + pow(v.z, 2);
-}
-float length(Vec3 v)
-{
-    return sqrt(length_squared(v));
-}
-float dot(Vec3 u, Vec3 v)
-{
-    return u.x * v.x + u.y * v.y + u.z * v.z;
-}
-
-Vec3 cross_(Vec3 u, Vec3 v)
-{
-    return coor(u.y * v.z - u.z * v.y,
-                u.z * v.x - u.x * v.z,
-                u.x * v.y - u.y * v.x);
-}
-Vec3 unit_vector(Vec3 v)
-{
-    float f = length(v);
-
-    if (f <= 0.0001f)
-        return (Vec3){};
-    return div_(v, f);
-}
-Vec3 random_vector(float min, float max)
-{
-    return coor(random_float(min, max), random_float(min, max), random_float(min, max));
-}
-Vec3 random_in_unit_sphere()
-{
-    while (1)
-    {
-        Vec3 v = random_vector(-1, 1);
-        if (length_squared(v) <= 1)
-            return v;
-    }
-}
-Vec3 random_unit_vector()
-{
-    Vec3 u = random_in_unit_sphere();
-    Vec3 v = unit_vector(u);
-    return v;
-}
-Ray new_ray(Vec3 org, Vec3 dir)
-{
-    return (Ray){.dir = dir, .org = org};
-}
-Vec3 point_at(Ray ray, float t)
-{
-    return (Vec3){.x = ray.org.x + t * ray.dir.x, .y = ray.org.y + t * ray.dir.y, .z = ray.org.z + t * ray.dir.z};
-}
-time_t get_time()
-{
-    struct timespec time_;
-    clock_gettime(CLOCK_MONOTONIC, &time_);
-    return (time_.tv_sec * 1000 + time_.tv_nsec / 1000000);
-}
-
-// mini raytracer
-Obj new_sphere(Vec3 center, float radius, Color color, Mat mat)
-{
-    Obj new;
-    new.type = sphere_;
-    new.center = center;
-    new.radius = radius;
-    new.color = color;
-    new.mat = mat;
-    return new;
-}
-
-Obj new_plan(Vec3 normal, float d, Color color, Mat mat)
-{
-    Obj new;
-    new.type = plan_;
-    new.normal = unit_vector(normal);
-    new.d = d;
-    new.color = color;
-    new.mat = mat;
-    return new;
-}
-
+// Ray tracing
 float hit_sphere(Obj sphere, Ray ray, float min, float max)
 {
-    Vec3 OC = sub_(ray.org, sphere.center);
+    Vec3 OC = sub_vec3(ray.org, sphere.center);
     float a = length_squared(ray.dir);
     float half_b = dot(OC, ray.dir);
     float c = length_squared(OC) - sphere.radius * sphere.radius;
     float delta = half_b * half_b - a * c;
-    if (delta < 0.0)
+    if (delta < .0)
         return -1.0;
     float sq_delta = sqrtf(delta);
     float sol = (-half_b - sq_delta) / a;
@@ -287,6 +19,17 @@ float hit_sphere(Obj sphere, Ray ray, float min, float max)
     return (sol);
 }
 
+float hit_plan(Obj plan, Ray ray, float min, float max)
+{
+    float t = plan.d - dot(plan.normal, ray.org);
+    float div = dot(ray.dir, plan.normal);
+    if (fabsf(div) <= ZERO)
+        return -1.0;
+    t /= div;
+    if (t <= min || t >= max)
+        return -1.0;
+    return (t);
+}
 // TODO : to be verified
 float reflectance(float cosine, float ref_idx)
 {
@@ -295,184 +38,157 @@ float reflectance(float cosine, float ref_idx)
     r0 = r0 * r0;
     return r0 + (1 - r0) * pow((1 - cosine), 5);
 }
-
 Ray render_object(Obj obj, Ray ray, float closest)
 {
     // point coordinates
-    Vec3 p = point_at(ray, closest);
     Vec3 cp_norm;
-
+    Vec3 p = point_at(ray, closest);
     if (obj.type == sphere_)
-        cp_norm = unit_vector(sub_(p, obj.center));
-    else if (obj.type == plan_)
+    {
+        cp_norm = unit_vector(sub_vec3(p, obj.center));
+    }
+    else if (obj.type == plan_ || obj.type == triangle_)
         cp_norm = obj.normal;
 
     bool same_dir = dot(cp_norm, ray.dir) >= 0;
     if (same_dir) // to be used when drawing triangle
-        cp_norm = (Vec3){.x = -cp_norm.x, .y = -cp_norm.y, .z = -cp_norm.z};
-
+        cp_norm = (Vec3){-cp_norm.x, -cp_norm.y, -cp_norm.z};
     Vec3 ranv = random_unit_vector();
     Vec3 ndir;
-    Ray nray;
-    if (obj.mat == Reflectif_)
+    if (obj.mat == Refl_)
     {
         float val;
         val = -2 * dot(ray.dir, cp_norm);
-        ndir = (Vec3){.x = ray.dir.x + val * cp_norm.x, .y = ray.dir.y + val * cp_norm.y, .z = ray.dir.z + val * cp_norm.z};
+        ndir = (Vec3){ray.dir.x + val * cp_norm.x, ray.dir.y + val * cp_norm.y, ray.dir.z + val * cp_norm.z};
     }
-    else if (obj.mat == Refractif_)
+    else if (obj.mat == Refr_)
     {
         float index_of_refraction = 1.5;
         float refraction_ratio = same_dir ? index_of_refraction : (1.0 / index_of_refraction);
 
         float cos_theta = dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm)); // fmin(dot(-unit_dir, normal), 1.0);
         float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+#if 0
         if (refraction_ratio * sin_theta > 1.0 || reflectance(cos_theta, refraction_ratio) > random_float(-FLT_MAX, FLT_MAX))
+#else
+        if (refraction_ratio * sin_theta > 1.0)
+#endif
         {
             // Reflect
             float val;
-            // Vec3 ray_dir = unit_vector(ray.dir);
             val = -2 * dot(ray.dir, cp_norm);
-            ndir = (Vec3){.x = ray.dir.x + val * cp_norm.x, .y = ray.dir.y + val * cp_norm.y, .z = ray.dir.z + val * cp_norm.z};
+            ndir = (Vec3){ray.dir.x + val * cp_norm.x, ray.dir.y + val * cp_norm.y, ray.dir.z + val * cp_norm.z};
         }
         else
         {
             // Refract
             Vec3 ray_dir = unit_vector(ray.dir);
-            Vec3 Perp = mul_(refraction_ratio, sub_(ray_dir, mul_(dot(ray_dir, cp_norm), cp_norm)));
-            Vec3 Para = mul_(sqrt(1 - pow(length(Perp), 2)), neg_(cp_norm));
-            ndir = add_(Perp, Para);
+            Vec3 Perp = mul_vec3(refraction_ratio, sub_vec3(ray_dir, mul_vec3(dot(ray_dir, cp_norm), cp_norm)));
+            Vec3 Para = mul_vec3(sqrt(1 - pow(length(Perp), 2)), mul_vec3(-1, cp_norm));
+            ndir = add_vec3(Perp, Para);
         }
     }
-    else if (obj.mat == Absorb_)
-        ndir = add_(cp_norm, ranv);
-    nray = new_ray(p, ndir);
-    return nray;
+    else if (obj.mat == Abs_)
+        ndir = add_vec3(cp_norm, ranv);
+    return (Ray){.org = p, .dir = ndir};
 }
-
-double hit_plan(Obj plan, Ray ray, float min, float closest)
+// TODO: Barycentric Coordinates
+float hit_triangle(Obj trian, Ray ray, float min, float max)
 {
-    float t = -plan.d - dot(plan.normal, ray.org);
-    float div = dot(ray.dir, plan.normal);
-    if (fabsf(div) <= 0.0001f)
+    float t = dot(trian.normal, sub_vec3(trian.p1, ray.org));
+    float div = dot(trian.normal, ray.dir);
+    if (fabsf(div) <= ZERO)
         return -1.0;
     t /= div;
-    if (t < min || t > closest)
+    if (t <= min || t >= max)
         return -1.0;
-    return (t);
-}
-
-float ray_hit(Win *win, Ray ray, int *hit_index)
-{
-    Scene scene = win->scene;
-    float closest = FLT_MAX;
-    float x = 0.0;
-    for (int i = 0; i < scene.pos; i++)
-    {
-        if (scene.objects[i].type == sphere_)
-            x = hit_sphere(scene.objects[i], ray, 0.0001f, closest);
-        else if (scene.objects[i].type == plan_)
-            x = hit_plan(scene.objects[i], ray, 0.0001f, closest);
-        if (x > 0.0 && x < closest)
-        {
-            *hit_index = i;
-            closest = x;
-        }
-    }
-    return closest;
+    Vec3 v0 = sub_vec3(trian.p2, trian.p1);
+    Vec3 v1 = sub_vec3(trian.p3, trian.p1);
+    Vec3 v2 = sub_vec3(point_at(ray, t), trian.p1);
+    float dot00 = dot(v0, v0);
+    float dot01 = dot(v0, v1);
+    float dot02 = dot(v0, v2);
+    float dot11 = dot(v1, v1);
+    float dot12 = dot(v1, v2);
+    float invDenom = 1.0 / (dot00 * dot11 - dot01 * dot01);
+    float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+    float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+    if (u < 0 || v < 0 || u + v > 1)
+        return -1.0;
+    return t;
 }
 
 Color ray_color(Win *win, Ray ray, int depth)
 {
-    Scene scene = win->scene;
-    if (depth == 50)
-        return coor(0, 0, 0);
+    Scene *scene = &win->scene;
+    Color light = {};
+    Color attenuation = {1, 1, 1};
 
-    int hit_index = -1;
-    float closest = ray_hit(win, ray, &hit_index);
-
-    Ray nray;
-    Color c = (Vec3){};
-
-    if (hit_index != -1)
+    for (int bounce = 0; bounce < depth; bounce++)
     {
-#if 0 // Shadow
-        Vec3 p = point_at(ray, closest);
-        Vec3 light = {0, 5, -4};
-
-        Obj *o = &scene.objects[hit_index];
-
-        Vec3 L = unit_vector(sub_(light, p));
-        Vec3 N;
-        if (o->type == sphere_)
-            N = sub_(p, o->center);
-        else if (o->type == plan_)
-            N = o->normal;
-        N = unit_vector(N);
-
-        c = o->color;
-        
-    
-        if (o->mat == Absorb_ || o->mat == Refractif_)
+        float closest = FLT_MAX;
+        int hit_index = -1;
+        float x = .0;
+        for (int i = 0; i < scene->pos; i++)
         {
-            c = mul_(fmax(0, dot(N, L)), c);
-        
+            if (scene->objects[i].type == sphere_)
+                x = hit_sphere(scene->objects[i], ray, ZERO, closest);
+            else if (scene->objects[i].type == plan_)
+                x = hit_plan(scene->objects[i], ray, ZERO, closest);
+            else if (scene->objects[i].type == triangle_)
+                x = hit_triangle(scene->objects[i], ray, ZERO, closest);
+            if (x > .0)
+            {
+                hit_index = i;
+                closest = x;
+            }
         }
-        else if (o->mat == Reflectif_)
+        if (hit_index != -1)
         {
-            float val;
-            val = -2 * dot(ray.dir, N);
-            Vec3 new_dir = (Vec3){.x = ray.dir.x + val * N.x, .y = ray.dir.y + val * N.y, .z = ray.dir.z + val * N.z};
-
-            c = mul(c, ray_color(win, new_ray(p, new_dir), depth + 1));
-
+            Obj *obj = &scene->objects[hit_index];
+            ray = render_object(*obj, ray, closest);
+            light = add_vec3(light, mul_vec3_(attenuation, mul_vec3(obj->light_intensity, obj->light_color)));
+            attenuation = mul_vec3_(attenuation, obj->color);
         }
+        else
+        {
+            float a = 0.5 * (unit_vector(ray.dir).y + 1.0);
+            float r = (1.0 - a) + a * .3;
+            float g = (1.0 - a) + a * .7;
+            float b = (1.0 - a) + a * 1.0;
 
-        float t = ray_hit(win, new_ray(p, L), &hit_index);
-
-        if (t > 0 && t < length(sub_(light, p)))
-            c = (Vec3){};
-        
-        return c;
-#else
-        nray = render_object(scene.objects[hit_index], ray, closest);
-        Color color = ray_color(win, nray, depth + 1);
-        color = mul(color, scene.objects[hit_index].color);
-        return color;
-#endif
+            light = add_vec3(light, mul_vec3_(attenuation, (Color){r, g, b}));
+            break;
+        }
+        if (attenuation.x <= ZERO && attenuation.y <= ZERO && attenuation.z <= ZERO)
+            break;
     }
-
-    float a = 0.5 * (unit_vector(ray.dir).y + 1.0);
-    float r = (1.0 - a) + a * 0.3;
-    float g = (1.0 - a) + a * 0.7;
-    float b = (1.0 - a) + a * 1.0;
-    return coor(r, g, b);
+    return light;
 }
 
 int draw(void *ptr)
 {
     static int frame;
     static Color *sum;
-    frame++;
     struct timespec time_start, time_end;
     clock_gettime(CLOCK_MONOTONIC, &time_start);
+    frame++;
 
     Win *win = (Win *)ptr;
-    Scene *scene = (Scene *)(&win->scene);
+    Scene *scene = &win->scene;
     if (sum == NULL)
         sum = calloc(win->width * win->height, sizeof(Color));
-
 #pragma omp parallel for
-    for (int w = 0; w < win->width; w++)
+    for (int h = 0; h < win->height; h++)
     {
-        for (int h = 0; h < win->height; h++)
+        for (int w = 0; w < win->width; w++)
         {
-            Vec3 pixel_center = add_(add_(scene->first_pixel, mul_(w + random_float(0, 1), scene->pixel_u)), mul_(h + random_float(0, 1), scene->pixel_v));
-            Vec3 dir = sub_(pixel_center, scene->camera);
-            Ray ray = new_ray(scene->camera, dir);
-            Color pixel = ray_color(win, ray, 0);
-            sum[h * win->width + w] = add_(sum[h * win->width + w], pixel);
-            pixel = div_(sum[h * win->width + w], (float)frame);
+            Vec3 pixel_center = add_vec3(add_vec3(scene->first_pixel, mul_vec3(w + random_float(0, 1), scene->pixel_u)), mul_vec3(h + random_float(0, 1), scene->pixel_v));
+            Vec3 dir = sub_vec3(pixel_center, scene->camera);
+            Ray ray = (Ray){.org = scene->camera, .dir = dir};
+            Color pixel = ray_color(win, ray, 5);
+            sum[h * win->width + w] = add_vec3(sum[h * win->width + w], pixel);
+            pixel = div_vec3(sum[h * win->width + w], (float)frame);
             if (pixel.r > 1)
                 pixel.r = 1;
             if (pixel.g > 1)
@@ -494,47 +210,111 @@ int main(void)
 {
     Win win = {0};
     Scene *scene = &win.scene;
-    scene->aspect_ratio = 1; // 16.0 / 9.0;
     win.width = 512;
-    win.height = (int)((float)win.width / scene->aspect_ratio);
+    win.height = (int)((float)win.width / 1.0);
     if (win.height < 1)
         win.height = 1;
 
-    scene->view_angle = degrees_to_radians(20);
-    scene->lookfrom = coor(0, 3, 20);
-    scene->lookat = coor(-0.5, 0, -1);
-    scene->vup = coor(0, 1, 0);
+    scene->view_angle = degrees_to_radians(60);
+    scene->camera = (Vec3){0, 0, -1};
+    scene->camera_dir = sub_vec3((Vec3){0, 0, 0}, scene->camera); // direction
+    Vec3 rightv = (Vec3){1, 0, 0};                                // used for getting u,v,w
 
-    scene->camera = scene->lookfrom; // TODO: to be checked ?
-    scene->focal_length = length(sub_(scene->lookfrom, scene->lookat));
+    scene->len = 2; // length(sub_vec3(scene->camera, scene->camera_dir)); // distance from screen
     float tang = tan(scene->view_angle / 2);
-    float screen_height = 2 * tang * scene->focal_length;
+    float screen_height = 2 * tang * scene->len;
     float screen_width = screen_height * ((float)win.width / win.height);
 
-    scene->w = unit_vector(sub_(scene->lookfrom, scene->lookat)); // lookfrom - lookat
-    scene->u = unit_vector(cross_(scene->vup, scene->w));         // cross(vup,w)
-    scene->v = unit_vector(cross_(scene->w, scene->u));           // cross(w, u)
+    scene->w = unit_vector(div_vec3(scene->camera_dir, scene->len)); // unit_vector(sub_vec3(scene->camera_dir, scene->camera)); // lookat - camera  z+ (get w vector)
+    scene->v = unit_vector(cross_(rightv, scene->w));                // y+ (get v vector)
+    scene->u = unit_vector(cross_(scene->w, scene->v));              // x+ (get u vector)
 
     // viewport steps
-    scene->screen_u = mul_(screen_width, scene->u);
-    scene->screen_v = mul_(screen_height, neg_(scene->v));
+    scene->screen_u = mul_vec3(screen_width, scene->u);
+    scene->screen_v = mul_vec3(screen_height, scene->v);
     // window steps
-    scene->pixel_u = div_(scene->screen_u, win.width);
-    scene->pixel_v = div_(scene->screen_v, win.height);
+    scene->pixel_u = div_vec3(scene->screen_u, win.width);
+    scene->pixel_v = div_vec3(scene->screen_v, win.height);
 
-    Vec3 screen_center = sub_(scene->camera, mul_(scene->focal_length, scene->w));                   // camera - focal_length * w
-    Vec3 upper_left = sub_(sub_(screen_center, div_(scene->screen_u, 2)), div_(scene->screen_v, 2)); // screen_center - screen_u / 2 - screen_v / 2
-    scene->first_pixel = add_(upper_left, mul_(0.5, add_(scene->pixel_u, scene->pixel_v)));        // upper_left + 0.5 * pixel_u + 0.5 * pixel_v
+    Vec3 screen_center = add_vec3(scene->camera, mul_vec3(scene->len, scene->w));                       // camera + len * w
+    Vec3 upper_left = sub_vec3(screen_center, div_vec3(add_vec3(scene->screen_u, scene->screen_v), 2)); // center - screen_u / 2 - screen_v / 2 = center - (screen_u+screen_v)/2
+    scene->first_pixel = add_vec3(upper_left, div_vec3(add_vec3(scene->pixel_u, scene->pixel_v), 2));   // upper_left + (pixel_u + pixel_v) / 2
 
     // add objects
-    scene->pos = 0;
-    scene->objects[scene->pos++] = new_sphere((Vec3){.0, .5, -1.0}, .5, (Vec3){.7, .3, .3}, Absorb_);     // center
-    scene->objects[scene->pos++] = new_sphere((Vec3){-1.5, .5, -1.0}, .5, (Vec3){.8, .8, .8}, Reflectif_); // left
-    scene->objects[scene->pos++] = new_sphere((Vec3){1.5, .5, -1.0}, .5, (Vec3){1, 1, 1}, Refractif_);     // right
-    scene->objects[scene->pos++] = new_plan((Vec3){0.0, 1.0, 0.0}, 0, (Vec3){.8, .8, .8}, Absorb_);
-    // scene->objects[scene->pos++] = new_plan(coor(0.0, 1.0, 0.0), 0, coor(0.8, 0.6, 0.2), Absorb_);
-    // scene->objects[scene->pos++] = new_plan(coor(1.0, 0, 0.0), 2.5, coor(.8, .8, .8), Reflectif_);
-    // scene->objects[scene->pos++] = new_plan(coor(1.0, 0.0, 0.0), 0.5, coor(1, 0, 0), Reflectif_); // red plan
+#if 0
+    Vec3 colors[] = {
+        // {1, 1, 1},
+        {0.92, 0.19, 0.15},
+        {0.42, 0.92, 0.72},
+        {0.42, 0.87, 0.92},
+        {0.30, 0.92, 0.64},
+        {0.39, 0.92, 0.63},
+        {0.42, 0.92, 0.80},
+        {0.47, 0.16, 0.92},
+        {0.42, 0.58, 0.92},
+        {0.92, 0.40, 0.30},
+        {0.61, 0.75, 0.24},
+        {0.83, 0.30, 0.92},
+        {0.23, 0.92, 0.08},
+    };
+    struct
+    {
+        Vec3 normal;
+        float dist; // distance from camera
+        Mat mat;
+    } plans[] = {
+        {(Vec3){}, 0, 0},
+        {(Vec3){0, -1, 0}, 4, Abs_}, // up
+        {(Vec3){0, 1, 0}, 4, Abs_},  // down
+        {(Vec3){0, 0, 1}, 12, Refr_}, // behind
+        {(Vec3){1, 0, 0}, 4, Abs_},  // right
+        {(Vec3){-1, 0, 0}, 4, Abs_}, // left
+    };
+    struct
+    {
+        Vec3 org;
+        float rad;
+        Mat mat;
+    } spheres[] = {
+        {(Vec3){}, 0, 0},
+        {(Vec3){0, 0, 12}, 2, Abs_}, // center
+        {(Vec3){0, 5, 8}, 2, Abs_},  // up
+        {(Vec3){-5, 0, 8}, 2, Abs_}, // left
+        {(Vec3){5, 0, 8}, 2, Abs_},  // right
+        {(Vec3){0, -5, 8}, 2, Abs_}, // down
+    };
+
+    int i = 0;
+    while (spheres[i].mat)
+    {
+        Vec3 org = spheres[i].org;
+        float rad = spheres[i].rad;
+        Mat mat = spheres[i].mat;
+        scene->objects[scene->pos] = new_sphere(org, rad, colors[scene->pos % (sizeof(colors) / sizeof(*colors))], mat);
+        // scene->objects[scene->pos].light_intensity = 1;
+        // scene->objects[scene->pos].light_color = (Color){1, 1, 1};
+        i++;
+        scene->pos++;
+    }
+    i = 0;
+    while (plans[i].mat)
+    {
+        Vec3 normal = plans[i].normal;
+        float dist = plans[i].dist;
+        Mat mat = plans[i].mat;
+        scene->objects[scene->pos] = new_plan(normal, dist, colors[scene->pos % (sizeof(colors) / sizeof(*colors))], mat);
+        i++;
+        scene->pos++;
+    }
+    scene->objects[0].light_intensity = 1;
+    scene->objects[0].light_color = (Color){1, 1, 1};
+#else
+    Vec3 p1, p2, p3;
+    p1 = (Vec3){0, 1, 2};
+    p2 = (Vec3){-1, 0, 2};
+    p3 = (Vec3){1, -1, 2};
+    scene->objects[scene->pos++] = new_triangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+#endif
 
     win.mlx = mlx_init();
     win.win = mlx_new_window(win.mlx, win.width, win.height, "Mini Raytracer");

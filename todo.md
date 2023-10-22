@@ -1,3 +1,6 @@
 21 Oct
 + render rectangle/square
-+ render cube
++ render a random object
++ move camera
++ create animation
++ build a game

@@ -30,14 +30,7 @@ float hit_plan(Obj plan, Ray ray, float min, float max)
         return -1.0;
     return (t);
 }
-// // TODO : to be verified
-// float reflectance(float cosine, float ref_idx)
-// {
-//     // Use Schlick's approximation for reflectance.
-//     float r0 = (1 - ref_idx) / (1 + ref_idx);
-//     r0 = r0 * r0;
-//     return r0 + (1 - r0) * pow((1 - cosine), 5);
-// }
+
 Ray render_object(Obj obj, Ray ray, float closest)
 {
     // point coordinates
@@ -66,13 +59,9 @@ Ray render_object(Obj obj, Ray ray, float closest)
         float index_of_refraction = 1.5;
         float refraction_ratio = same_dir ? index_of_refraction : (1.0 / index_of_refraction);
 
-        float cos_theta = dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm)); // fmin(dot(-unit_dir, normal), 1.0);
+        float cos_theta = dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm));
         float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
-#if 0
-        if (refraction_ratio * sin_theta > 1.0 || reflectance(cos_theta, refraction_ratio) > random_float(-FLT_MAX, FLT_MAX))
-#else
         if (refraction_ratio * sin_theta > 1.0)
-#endif
         {
             // Reflect
             float val;
@@ -128,7 +117,7 @@ Color ray_color(Win *win, Ray ray, int depth)
     {
         float closest = FLT_MAX;
         int hit_index = -1;
-        float x = .0;
+        float x = 0;
         for (int i = 0; i < scene->pos; i++)
         {
             if (scene->objects[i].type == sphere_)
@@ -241,110 +230,6 @@ void init(Win *win)
     scene->first_pixel = add_vec3(upper_left, div_vec3(add_vec3(scene->pixel_u, scene->pixel_v), 2));   // upper_left + (pixel_u + pixel_v) / 2
 }
 
-typedef struct
-{
-    int v, vt, vn;
-} FaceVertex;
-
-void parse_cube(Scene *scene, char *name)
-{
-    FILE *file = fopen(name, "r");
-    if (!file)
-    {
-        fprintf(stderr, "Error: Could not open the .obj file.\n");
-        exit(1);
-    }
-
-    char line[128];
-    Vec3 *vertices = NULL;
-    Vec3 *normals = NULL;
-    Vec3 *textures = NULL;
-    Obj *triangles = scene->objects;
-    int numVertices = 0;
-    int numNormals = 0;
-    int numTextures = 0;
-    // scene->pos = 0;
-
-    while (fgets(line, sizeof(line), file))
-    {
-        if (line[0] == 'v' && line[1] == ' ')
-        {
-            Vec3 vertex;
-            if (sscanf(line, "v %f %f %f", &vertex.x, &vertex.y, &vertex.z) == 3)
-            {
-                numVertices++;
-                // vertex.x += 2; 
-                vertex.y += 2;  
-                vertex.z += 10;
-                vertices = (Vec3 *)realloc(vertices, numVertices * sizeof(Vec3));
-                vertices[numVertices - 1] = vertex;
-            }
-        }
-        else if (line[0] == 'v' && line[1] == 'n')
-        {
-            Vec3 normal;
-            if (sscanf(line, "vn %f %f %f", &normal.x, &normal.y, &normal.z) == 3)
-            {
-                numNormals++;
-                normals = (Vec3 *)realloc(normals, numNormals * sizeof(Vec3));
-                normals[numNormals - 1] = normal;
-            }
-        }
-        else if (line[0] == 'v' && line[1] == 't')
-        {
-            Vec3 texture;
-            if (sscanf(line, "vt %f %f %f", &texture.x, &texture.y, &texture.z) >= 2)
-            {
-                numTextures++;
-                textures = (Vec3 *)realloc(textures, numTextures * sizeof(Vec3));
-                textures[numTextures - 1] = texture;
-            }
-        }
-        else if (line[0] == 'f' && line[1] == ' ')
-        {
-            FaceVertex face[3];
-            if (sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
-                       &face[0].v, &face[0].vt, &face[0].vn,
-                       &face[1].v, &face[1].vt, &face[1].vn,
-                       &face[2].v, &face[2].vt, &face[2].vn) == 9)
-            {
-                scene->pos++;
-                // triangles = (Obj *)realloc(triangles, scene->pos * sizeof(Obj));
-
-                for (int i = 0; i < 3; i++)
-                {
-                    triangles[scene->pos - 1].type = triangle_;
-                    triangles[scene->pos - 1].color = (Color){1, 0, 0};
-                    triangles[scene->pos - 1].normal = normals[face[i].vn - 1];
-                    switch (i)
-                    {
-                    case 0:
-                        triangles[scene->pos - 1].p1 = vertices[face[i].v - 1];
-                        break;
-                    case 1:
-                        triangles[scene->pos - 1].p2 = vertices[face[i].v - 1];
-                        break;
-                    case 2:
-                        triangles[scene->pos - 1].p3 = vertices[face[i].v - 1];
-                        break;
-                    }
-                }
-                // printf("new triangle: \n");
-                // printf("\tp1(%f, %f, %f)\n", triangles[scene->pos - 1].p1.x, triangles[scene->pos - 1].p1.y, triangles[scene->pos - 1].p1.z);
-                // printf("\tp2(%f, %f, %f)\n", triangles[scene->pos - 1].p2.x, triangles[scene->pos - 1].p2.y, triangles[scene->pos - 1].p2.z);
-                // printf("\tp3(%f, %f, %f)\n", triangles[scene->pos - 1].p3.x, triangles[scene->pos - 1].p3.y, triangles[scene->pos - 1].p3.z);
-            }
-        }
-    }
-
-    fclose(file);
-
-    if (numVertices == 0 || scene->pos == 0)
-    {
-        fprintf(stderr, "Error: No vertices or triangles found in the .obj file.\n");
-        exit(1);
-    }
-}
 
 int main(void)
 {

@@ -24,11 +24,16 @@ typedef struct
     int endian;
 } Win;
 
-
-typedef union 
+typedef union
 {
-    struct {float x, y, z;};
-    struct {float r, g, b;};
+    struct
+    {
+        float x, y, z;
+    };
+    struct
+    {
+        float r, g, b;
+    };
 } v3;
 
 typedef struct
@@ -80,8 +85,7 @@ v3 v3_cross(v3 a, v3 b)
     return (v3){
         a.y * b.z - a.z * b.y,
         a.z * b.x - a.x * b.z,
-        a.x * b.y - a.y * b.x
-    };
+        a.x * b.y - a.y * b.x};
 }
 
 v2 V2(float x, float y)
@@ -142,7 +146,7 @@ v3 get_barycentic_coordinates(v2 p0, v2 p1, v2 p2, v2 p)
 
     if (alpha < 0 || beta < 0 || alpha > 1 || beta > 1 || alpha + beta > 1)
         return (v3){-1, -1, -1};
-    return (v3){alpha, beta, 1 - (alpha + beta)}; 
+    return (v3){alpha, beta, 1 - (alpha + beta)};
 }
 
 void draw_triangle(Win *win, v3 tp0, v3 tp1, v3 tp2, v3 color)
@@ -159,19 +163,21 @@ void draw_triangle(Win *win, v3 tp0, v3 tp1, v3 tp2, v3 color)
     int min_y = floorf(box_min.y);
     int max_y = ceilf(box_max.y);
 
-    if (min_x < 0) min_x = 0;
-    if (min_y < 0) min_y = 0;
-    if (max_x > win->width) max_x = win->width;
-    if (max_y > win->height) max_y = win->height;
-
-    
+    if (min_x < 0)
+        min_x = 0;
+    if (min_y < 0)
+        min_y = 0;
+    if (max_x > win->width)
+        max_x = win->width;
+    if (max_y > win->height)
+        max_y = win->height;
 
     for (int y = min_y; y < max_y; y++)
     {
         for (int x = min_x; x < max_x; x++)
         {
             v3 b = get_barycentic_coordinates(p0, p1, p2, (v2){x, y});
-            
+
             v3 p = v3_add(v3_scale(tp0, b.z), v3_add(v3_scale(tp1, b.x), v3_scale(tp2, b.y)));
 
             if (b.x > 0 && p.z > zbuffer[y * win->width + x])
@@ -184,13 +190,12 @@ void draw_triangle(Win *win, v3 tp0, v3 tp1, v3 tp2, v3 color)
                 color = v3_add(v3_scale(c0, b.z), v3_add(v3_scale(c1, b.x), v3_scale(c2, b.y)));
 
                 uint32_t color32 = ((uint32_t)(color.r * 255 + 0.5f) << 16) |
-                        ((uint32_t)(color.g * 255 + 0.5f) << 8) |
-                        ((uint32_t)(color.b * 255 + 0.5f) << 0);
+                                   ((uint32_t)(color.g * 255 + 0.5f) << 8) |
+                                   ((uint32_t)(color.b * 255 + 0.5f) << 0);
 
                 uint32_t *pixel = (uint32_t *)win->addr + (win->height - y - 1) * win->width + x;
 
                 *pixel = color32;
-
             }
         }
     }
@@ -204,7 +209,7 @@ void draw_cube(Win *win, v3 c, v3 w, float radius, v3 color)
 
     if (fabsf(v3_dot(up, w)) > 0.9)
         up = V3(1, 0, 0);
-    
+
     v3 u = v3_noz(v3_cross(up, w));
     v3 v = v3_noz(v3_cross(w, u));
 
@@ -215,32 +220,34 @@ void draw_cube(Win *win, v3 c, v3 w, float radius, v3 color)
     v = v3_scale(v, radius);
     w = v3_scale(w, radius);
 
-    
-
-    v3 p00 = v3_add(c, v3_add(v3_scale(u, -1), v3_add(v3_scale(v, -1), v3_scale(w, -1))));//c - u - v - w;
-    v3 p01 = v3_add(c, v3_add(v3_scale(u, +1), v3_add(v3_scale(v, -1), v3_scale(w, -1))));//c + u - v - w;
-    v3 p02 = v3_add(c, v3_add(v3_scale(u, +1), v3_add(v3_scale(v, +1), v3_scale(w, -1))));//c + u + v - w;
-    v3 p03 = v3_add(c, v3_add(v3_scale(u, -1), v3_add(v3_scale(v, +1), v3_scale(w, -1))));//c - u + v - w;
-    v3 p10 = v3_add(c, v3_add(v3_scale(u, -1), v3_add(v3_scale(v, -1), v3_scale(w, +1))));//c - u - v + w;
-    v3 p11 = v3_add(c, v3_add(v3_scale(u, +1), v3_add(v3_scale(v, -1), v3_scale(w, +1))));//c + u - v + w;
-    v3 p12 = v3_add(c, v3_add(v3_scale(u, +1), v3_add(v3_scale(v, +1), v3_scale(w, +1))));//c + u + v + w;
-    v3 p13 = v3_add(c, v3_add(v3_scale(u, -1), v3_add(v3_scale(v, +1), v3_scale(w, +1))));//c - u + v + w;
+    v3 p00 = v3_add(c, v3_add(v3_scale(u, -1), v3_add(v3_scale(v, -1), v3_scale(w, -1)))); // c - u - v - w;
+    v3 p01 = v3_add(c, v3_add(v3_scale(u, +1), v3_add(v3_scale(v, -1), v3_scale(w, -1)))); // c + u - v - w;
+    v3 p02 = v3_add(c, v3_add(v3_scale(u, +1), v3_add(v3_scale(v, +1), v3_scale(w, -1)))); // c + u + v - w;
+    v3 p03 = v3_add(c, v3_add(v3_scale(u, -1), v3_add(v3_scale(v, +1), v3_scale(w, -1)))); // c - u + v - w;
+    v3 p10 = v3_add(c, v3_add(v3_scale(u, -1), v3_add(v3_scale(v, -1), v3_scale(w, +1)))); // c - u - v + w;
+    v3 p11 = v3_add(c, v3_add(v3_scale(u, +1), v3_add(v3_scale(v, -1), v3_scale(w, +1)))); // c + u - v + w;
+    v3 p12 = v3_add(c, v3_add(v3_scale(u, +1), v3_add(v3_scale(v, +1), v3_scale(w, +1)))); // c + u + v + w;
+    v3 p13 = v3_add(c, v3_add(v3_scale(u, -1), v3_add(v3_scale(v, +1), v3_scale(w, +1)))); // c - u + v + w;
 
     v3 triangles[][3] = {
-       {p00, p01, p02}, {p00, p02, p03}, // front
-      {p10, p11, p12}, {p10, p12, p13}, // back
-        {p01, p11, p12}, {p01, p12, p02}, // right
-        {p10, p00, p03}, {p10, p03, p13}, // left
-        {p03, p02, p12}, {p03, p12, p13}, // up
-        {p00, p01, p11}, {p00, p11, p10}, // down
-    
+        {p00, p01, p02}, {p00, p02, p03}, // front
+        {p10, p11, p12},
+        {p10, p12, p13}, // back
+        {p01, p11, p12},
+        {p01, p12, p02}, // right
+        {p10, p00, p03},
+        {p10, p03, p13}, // left
+        {p03, p02, p12},
+        {p03, p12, p13}, // up
+        {p00, p01, p11},
+        {p00, p11, p10}, // down
+
     };
     int n = sizeof(triangles) / sizeof(*triangles);
     for (int i = 0; i < n; i++)
     {
         draw_triangle(win, triangles[i][0], triangles[i][1], triangles[i][2], color);
     }
-
 }
 
 int draw(void *ptr)
@@ -253,7 +260,7 @@ int draw(void *ptr)
         focal_length = 1;
         fov = 65;
 
-        width = tan((fov*0.5f) * DEG_TO_RAD) * 2 * focal_length;
+        width = tan((fov * 0.5f) * DEG_TO_RAD) * 2 * focal_length;
         height = width * ((float)win->height / win->width);
 
         first_frame = 0;
@@ -276,7 +283,7 @@ int draw(void *ptr)
 
     a += 0.01f;
 
-    //draw_triangle(win, o, v3_add(o, u), v3_add(o, v), V3(1, 1, 1));
+    // draw_triangle(win, o, v3_add(o, u), v3_add(o, v), V3(1, 1, 1));
 
     v3 axis = {sin(a), cos(a), cos(a)};
     draw_cube(win, V3(0, 0, -3), axis, 0.5, V3(.4, .8, .5));
@@ -292,7 +299,7 @@ int main(void)
     window = &win;
     win.width = 512;
     win.height = 512;
-    
+
     zbuffer = malloc(win.width * win.height * sizeof(float));
 
     win.mlx = mlx_init();
@@ -301,6 +308,6 @@ int main(void)
     win.addr = mlx_get_data_addr(win.img, &win.bits_per_pixel, &win.line_length, &win.endian);
 
     mlx_loop_hook(win.mlx, draw, &win);
-    //mlx_key_hook(win.win, listen, &win);
+    // mlx_key_hook(win.win, listen, &win);
     mlx_loop(win.mlx);
 }
