@@ -26,7 +26,7 @@ typedef enum
 
 typedef enum
 {
-    sphere_ = 25,
+    sphere_ = 22,
     plan_,
     triangle_
 } Type;
@@ -93,18 +93,15 @@ typedef struct
 {
     // rendering
     float len;
-    // float aspect_ratio;
     float view_angle;
-    // Vec3 camera;
     Vec3 camera;
+    Vec3 camera_dir;
     Vec3 screen_u;
     Vec3 screen_v;
     Vec3 pixel_u;
     Vec3 pixel_v;
     Vec3 first_pixel;
     Vec3 u, v, w;
-    Vec3 lookat;
-    Vec3 vup;
     Obj objects[100];
     int pos;
 } Scene;

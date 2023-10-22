@@ -21,7 +21,7 @@ float hit_sphere(Obj sphere, Ray ray, float min, float max)
 
 float hit_plan(Obj plan, Ray ray, float min, float max)
 {
-    float t = -plan.d - dot(plan.normal, ray.org);
+    float t = plan.d - dot(plan.normal, ray.org);
     float div = dot(ray.dir, plan.normal);
     if (fabsf(div) <= ZERO)
         return -1.0;
@@ -67,7 +67,11 @@ Ray render_object(Obj obj, Ray ray, float closest)
 
         float cos_theta = dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm)); // fmin(dot(-unit_dir, normal), 1.0);
         float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+#if 0
         if (refraction_ratio * sin_theta > 1.0 || reflectance(cos_theta, refraction_ratio) > random_float(-FLT_MAX, FLT_MAX))
+#else
+        if (refraction_ratio * sin_theta > 1.0)
+#endif
         {
             // Reflect
             float val;
@@ -184,46 +188,59 @@ int main(void)
         win.height = 1;
 
     scene->view_angle = degrees_to_radians(60);
-    scene->camera = (Vec3){0, 1, 10};
-    scene->lookat = (Vec3){0, 1, 0};
-    scene->vup = (Vec3){0, 1, 0};
+    scene->camera = (Vec3){0, 0, -1};
+    scene->camera_dir = sub_vec3((Vec3){0, 0, 0}, scene->camera); // direction
+    Vec3 rightv = (Vec3){1, 0, 0};                                // used for getting u,v,w
 
-    scene->len = length(sub_vec3(scene->camera, scene->lookat));
+    scene->len = 2; // length(sub_vec3(scene->camera, scene->camera_dir)); // distance from screen
     float tang = tan(scene->view_angle / 2);
     float screen_height = 2 * tang * scene->len;
     float screen_width = screen_height * ((float)win.width / win.height);
 
-    scene->w = unit_vector(sub_vec3(scene->camera, scene->lookat)); // camera - lookat
-    scene->u = unit_vector(cross_(scene->vup, scene->w));           // cross(vup,w)
-    scene->v = unit_vector(cross_(scene->w, scene->u));             // cross(w, u)
+    scene->w = unit_vector(div_vec3(scene->camera_dir, scene->len)); // unit_vector(sub_vec3(scene->camera_dir, scene->camera)); // lookat - camera  z+ (get w vector)
+    scene->v = unit_vector(cross_(rightv, scene->w));                // y+ (get v vector)
+    scene->u = unit_vector(cross_(scene->w, scene->v));              // x+ (get u vector)
 
     // viewport steps
     scene->screen_u = mul_vec3(screen_width, scene->u);
-    scene->screen_v = mul_vec3(screen_height, mul_vec3(-1, scene->v));
+    scene->screen_v = mul_vec3(screen_height, scene->v);
     // window steps
     scene->pixel_u = div_vec3(scene->screen_u, win.width);
     scene->pixel_v = div_vec3(scene->screen_v, win.height);
 
-    Vec3 screen_center = sub_vec3(scene->camera, mul_vec3(scene->len, scene->w));                                    // camera - len * w
-    Vec3 upper_left = sub_vec3(sub_vec3(screen_center, div_vec3(scene->screen_u, 2)), div_vec3(scene->screen_v, 2)); // screen_center - screen_u / 2 - screen_v / 2
-    scene->first_pixel = add_vec3(upper_left, mul_vec3(0.5, add_vec3(scene->pixel_u, scene->pixel_v)));              // upper_left + 0.5 * pixel_u + 0.5 * pixel_v
+    Vec3 screen_center = add_vec3(scene->camera, mul_vec3(scene->len, scene->w));                       // camera + len * w
+    Vec3 upper_left = sub_vec3(screen_center, div_vec3(add_vec3(scene->screen_u, scene->screen_v), 2)); // center - screen_u / 2 - screen_v / 2 = center - (screen_u+screen_v)/2
+    scene->first_pixel = add_vec3(upper_left, div_vec3(add_vec3(scene->pixel_u, scene->pixel_v), 2)); // upper_left + (pixel_u + pixel_v) / 2
 
     // add objects
 #if 1
     Vec3 colors[] = {
-        {1, 1, 1},
+        // {1, 1, 1},
         {0.92, 0.19, 0.15},
         {0.42, 0.92, 0.72},
-        {0.79, 0.92, 0.23},
-        {0.23, 0.92, 0.08},
+        {0.42, 0.87, 0.92},
+        {0.30, 0.92, 0.64},
+        {0.39, 0.92, 0.63},
         {0.42, 0.92, 0.80},
         {0.47, 0.16, 0.92},
         {0.42, 0.58, 0.92},
         {0.92, 0.40, 0.30},
         {0.61, 0.75, 0.24},
-        {0.42, 0.87, 0.92},
         {0.83, 0.30, 0.92},
-        {0.30, 0.92, 0.64},
+        {0.23, 0.92, 0.08},
+    };
+    struct
+    {
+        Vec3 normal;
+        float dist; // ditance from camera
+        Mat mat;
+    } plans[] = {
+        {(Vec3){0, -1, 0}, 4, Abs_}, // up
+        {(Vec3){0, 1, 0}, 4, Abs_},  // down
+        {(Vec3){0, 0, 1}, 12, Abs_}, // behind
+        {(Vec3){1, 0, 0}, 4, Abs_},  // right
+        {(Vec3){-1, 0, 0}, 4, Abs_}, // left
+        {(Vec3){}, 0, 0},
     };
     struct
     {
@@ -231,25 +248,13 @@ int main(void)
         float rad;
         Mat mat;
     } spheres[] = {
+        {(Vec3){0, 0, 12.0}, 2, Abs_}, // center
         {(Vec3){}, 0, 0},
-        {(Vec3){0, 4.0, -1.5}, 2, Refl_},    // up
-        {(Vec3){-1, 0, -2.0}, .5, Refl_},    // center
-        {(Vec3){-1.5, .5, -1.0}, .5, Refl_}, // left
-        {(Vec3){1.5, .5, -1.0}, .5, Refl_},  // right
+        {(Vec3){0, 4.0, 1.5}, 2, Refl_},    // up
+        {(Vec3){-1.5, .5, 1.0}, .5, Refl_}, // left
+        {(Vec3){1.5, .5, 1.0}, .5, Refl_},  // right
     };
-    struct
-    {
-        Vec3 normal;
-        float dist;
-        Mat mat;
-    } plans[] = {
-        {(Vec3){}, 0, 0},
-        {(Vec3){.0, 1.0, .0}, -3, Abs_},  // up
-        {(Vec3){.0, 1.0, .0}, 0.5, Abs_}, // down
-        {(Vec3){.0, 0.0, 1.0}, 5, Abs_},  // behind
-        {(Vec3){1.0, .0, .0}, 2, Abs_},   // left
-        {(Vec3){1.0, .0, .0}, -2, Abs_},  // right
-    };
+
     int i = 0;
     while (spheres[i].mat)
     {
@@ -272,13 +277,13 @@ int main(void)
     }
     scene->objects[0].light_intensity = 1;
     scene->objects[0].light_color = (Color){1, 1, 1};
-#endif
+#else
     Vec3 p1, p2, p3;
     p1 = (Vec3){1, 1, 2};
     p2 = (Vec3){2, 1, 2};
     p3 = (Vec3){1.5, 2, 2};
-
     scene->objects[scene->pos++] = new_triangle(p1, p2, p3, colors[1], Abs_);
+#endif
 
     win.mlx = mlx_init();
     win.win = mlx_new_window(win.mlx, win.width, win.height, "Mini Raytracer");
