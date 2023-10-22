@@ -102,7 +102,7 @@ typedef struct
     Vec3 pixel_v;
     Vec3 first_pixel;
     Vec3 u, v, w;
-    Obj objects[100];
+    Obj *objects;
     int pos;
 } Scene;
 
@@ -184,10 +184,19 @@ Vec3 div_vec3(Vec3 v, float t)
 {
     if (t == 0)
     {
-        printf("Error: dividing by 0\n");
+        printf("Error 1: dividing by 0\n");
         exit(1);
     }
     return mul_vec3(1 / t, v);
+}
+Vec3 div_vec3_(Vec3 l, Vec3 r)
+{
+    if (r.x == 0.0 || r.y == 0.0 || r.z == 0.0)
+    {
+        printf("Error 2: dividing by 0\n");
+        exit(1);
+    }
+    return (Vec3){l.x / r.x, l.y / r.y, l.z / r.z};
 }
 float length_squared(Vec3 v)
 {
