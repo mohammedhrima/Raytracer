@@ -8,14 +8,46 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
 
+// key board
 #define ESC 53
 #define UP 126
 #define DOWN 125
 #define LEFT 123
 #define RIGHT 124
-#define RED 0xff0000
+#define FORWARD 91
+#define BACKWARD 84
+#define RESET 15
+#define FOCAL_LEN 10
+
+#define ROTATE_LEFT 88
+#define ROTATE_RIGHT 86
+
+// mouse
+#define MOUSE_LEFT 1
+#define MOUSE_RIGHT 2
+#define SCROLL_UP 5
+#define SCROLL_DOWN 4
+
 #define ZERO .0001f
+#define RED 0xff0000
+
+#define COLORS                  \
+    {                           \
+        {0.92, 0.19, 0.15},     \
+            {0.42, 0.92, 0.72}, \
+            {0.42, 0.87, 0.92}, \
+            {0.30, 0.92, 0.64}, \
+            {0.39, 0.92, 0.63}, \
+            {0.42, 0.92, 0.80}, \
+            {0.47, 0.16, 0.92}, \
+            {0.42, 0.58, 0.92}, \
+            {0.92, 0.40, 0.30}, \
+            {0.61, 0.75, 0.24}, \
+            {0.83, 0.30, 0.92}, \
+            {0.23, 0.92, 0.08}, \
+    }
 
 typedef enum
 {
@@ -28,7 +60,8 @@ typedef enum
 {
     sphere_ = 22,
     plan_,
-    triangle_
+    triangle_,
+    hemisphere_
 } Type;
 
 typedef union
@@ -63,6 +96,8 @@ typedef struct
         {
             Vec3 center;
             float radius;
+            // hemi Sphere
+            Vec3 heminormal;
         };
         struct
         {
@@ -95,7 +130,7 @@ typedef struct
     float len;
     float view_angle;
     Vec3 camera;
-    Vec3 camera_dir;
+    Vec3 cam_dir;
     Vec3 screen_u;
     Vec3 screen_v;
     Vec3 pixel_u;
@@ -114,26 +149,14 @@ typedef struct
     void *win;
     // image
     void *img;
+    void *title;
+
     char *addr;
     int bits_per_pixel;
     int line_length;
     int endian;
     Scene scene;
 } Win;
-
-// mlx
-int listen(int keycode, Win *vars)
-{
-    switch (keycode)
-    {
-    case ESC:
-        mlx_destroy_window(vars->mlx, vars->win);
-        exit(0);
-    default:
-        printf("%d\n", keycode);
-    }
-    return (0);
-}
 
 // utils
 static unsigned rng_state;
@@ -263,6 +286,17 @@ Obj new_sphere(Vec3 center, float radius, Color color, Mat mat)
     new.mat = mat;
     return new;
 }
+Obj new_hemisphere(Vec3 center, float radius, Vec3 normal, Color color, Mat mat)
+{
+    Obj new = {0};
+    new.type = hemisphere_;
+    new.center = center;
+    new.radius = radius;
+    new.color = color;
+    new.mat = mat;
+    new.heminormal = normal; // add_vec3(normal, center);
+    return new;
+}
 Obj new_plan(Vec3 normal, float d, Color color, Mat mat)
 {
     Obj new = {0};
@@ -285,3 +319,125 @@ Obj new_triangle(Vec3 p1, Vec3 p2, Vec3 p3, Color color, Mat mat)
     new.mat = mat;
     return new;
 }
+
+typedef struct
+{
+    int v, vt, vn;
+} FaceVertex;
+
+void parse_obj(Scene *scene, char *name)
+{
+    FILE *file = fopen(name, "r");
+    if (!file)
+    {
+        fprintf(stderr, "Error: Could not open the .obj file.\n");
+        exit(1);
+    }
+
+    char line[128];
+    Vec3 *vertices = NULL;
+    Vec3 *normals = NULL;
+    Vec3 *textures = NULL;
+    Obj *triangles = scene->objects;
+    int numVertices = 0;
+    int numNormals = 0;
+    int numTextures = 0;
+    // scene->pos = 0;
+
+    while (fgets(line, sizeof(line), file))
+    {
+        if (line[0] == 'v' && line[1] == ' ')
+        {
+            Vec3 vertex;
+            if (sscanf(line, "v %f %f %f", &vertex.x, &vertex.y, &vertex.z) == 3)
+            {
+
+                // vertex.x *= 2;
+                // vertex.y *= 2;
+                vertex.z *= 2;
+
+                vertices = (Vec3 *)realloc(vertices, (numVertices + 1) * sizeof(Vec3));
+                vertices[numVertices++] = vertex;
+            }
+        }
+        // else if (line[0] == 'v' && line[1] == 'n')
+        // {
+        //     Vec3 normal;
+        //     if (sscanf(line, "vn %f %f %f", &normal.x, &normal.y, &normal.z) == 3)
+        //     {
+        //         numNormals++;
+        //         normals = (Vec3 *)realloc(normals, numNormals * sizeof(Vec3));
+        //         normals[numNormals - 1] = normal;
+        //     }
+        // }
+        // else if (line[0] == 'v' && line[1] == 't')
+        // {
+        //     Vec3 texture;
+        //     if (sscanf(line, "vt %f %f %f", &texture.x, &texture.y, &texture.z) >= 2)
+        //     {
+        //         numTextures++;
+        //         textures = (Vec3 *)realloc(textures, numTextures * sizeof(Vec3));
+        //         textures[numTextures - 1] = texture;
+        //     }
+        // }
+        else if (line[0] == 'f' && line[1] == ' ')
+        {
+            FaceVertex face[3];
+            if (sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
+                       &face[0].v, &face[0].vt, &face[0].vn,
+                       &face[1].v, &face[1].vt, &face[1].vn,
+                       &face[2].v, &face[2].vt, &face[2].vn) == 9)
+            {
+                Vec3 p1 = vertices[face[0].v - 1];
+                Vec3 p2 = vertices[face[1].v - 1];
+                Vec3 p3 = vertices[face[2].v - 1];
+                triangles[scene->pos] = new_triangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+                scene->pos++;
+            }
+
+            // printf("new triangle: \n");
+            // printf("\tp1(%f, %f, %f)\n", triangles[scene->pos - 1].p1.x, triangles[scene->pos - 1].p1.y, triangles[scene->pos - 1].p1.z);
+            // printf("\tp2(%f, %f, %f)\n", triangles[scene->pos - 1].p2.x, triangles[scene->pos - 1].p2.y, triangles[scene->pos - 1].p2.z);
+            // printf("\tp3(%f, %f, %f)\n", triangles[scene->pos - 1].p3.x, triangles[scene->pos - 1].p3.y, triangles[scene->pos - 1].p3.z);
+        }
+    }
+    fclose(file);
+
+    if (numVertices == 0 || scene->pos == 0)
+    {
+        fprintf(stderr, "Error: No vertices or triangles found in the .obj file.\n");
+        exit(1);
+    }
+}
+
+// int listen_on_mouse(int code, Win *win)
+// {
+//     /*
+//         events:
+//             clique: left, right
+//             scroll: up down
+//     */
+//     Scene *scene = &win->scene;
+//     struct
+//     {
+//         Vec3 move;
+//         char *msg;
+//     } trans[1000] = {
+//         [SCROLL_UP] = {(Vec3){0, 0, -.1}, "forward"},
+//         [SCROLL_DOWN] = {(Vec3){0, 0, .1}, "backward"},
+//     };
+//     switch (code)
+//     {
+//     case SCROLL_UP:
+//     case SCROLL_DOWN:
+//         printf("%s\n", trans[code].msg);
+//         translate(scene, trans[code].move);
+//         break;
+//     default:
+//         printf("mouse: %d\n", code);
+//         return 0;
+//     }
+//     init(win);
+//     // printf("Pos (%f, %f, %f)\n", scene->camera.x, scene->camera.y, scene->camera.z);
+//     return 0;
+// }

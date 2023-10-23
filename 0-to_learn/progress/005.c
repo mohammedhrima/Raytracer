@@ -30,14 +30,7 @@ float hit_plan(Obj plan, Ray ray, float min, float max)
         return -1.0;
     return (t);
 }
-// TODO : to be verified
-float reflectance(float cosine, float ref_idx)
-{
-    // Use Schlick's approximation for reflectance.
-    float r0 = (1 - ref_idx) / (1 + ref_idx);
-    r0 = r0 * r0;
-    return r0 + (1 - r0) * pow((1 - cosine), 5);
-}
+
 Ray render_object(Obj obj, Ray ray, float closest)
 {
     // point coordinates
@@ -66,13 +59,9 @@ Ray render_object(Obj obj, Ray ray, float closest)
         float index_of_refraction = 1.5;
         float refraction_ratio = same_dir ? index_of_refraction : (1.0 / index_of_refraction);
 
-        float cos_theta = dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm)); // fmin(dot(-unit_dir, normal), 1.0);
+        float cos_theta = dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm));
         float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
-#if 0
-        if (refraction_ratio * sin_theta > 1.0 || reflectance(cos_theta, refraction_ratio) > random_float(-FLT_MAX, FLT_MAX))
-#else
         if (refraction_ratio * sin_theta > 1.0)
-#endif
         {
             // Reflect
             float val;
@@ -92,7 +81,7 @@ Ray render_object(Obj obj, Ray ray, float closest)
         ndir = add_vec3(cp_norm, ranv);
     return (Ray){.org = p, .dir = ndir};
 }
-// TODO: Barycentric Coordinates
+// TODO: check Barycentric Coordinates
 float hit_triangle(Obj trian, Ray ray, float min, float max)
 {
     float t = dot(trian.normal, sub_vec3(trian.p1, ray.org));
@@ -102,6 +91,21 @@ float hit_triangle(Obj trian, Ray ray, float min, float max)
     t /= div;
     if (t <= min || t >= max)
         return -1.0;
+#if 1
+    Vec3 p = sub_vec3(point_at(ray, t), trian.p1);
+
+    Vec3 u = sub_vec3(trian.p2, trian.p1);
+    Vec3 v = sub_vec3(trian.p3, trian.p1);
+    Vec3 normal = cross_(u, v);
+    Vec3 w = mul_vec3(1.0 / dot(normal, normal), normal);
+    float alpha = dot(cross_(p, v), w);
+    float beta = -dot(cross_(p, u), w);
+
+    if (alpha < 0 || beta < 0 || alpha + beta > 1)
+        return -1;
+
+    return t;
+#else
     Vec3 v0 = sub_vec3(trian.p2, trian.p1);
     Vec3 v1 = sub_vec3(trian.p3, trian.p1);
     Vec3 v2 = sub_vec3(point_at(ray, t), trian.p1);
@@ -116,6 +120,7 @@ float hit_triangle(Obj trian, Ray ray, float min, float max)
     if (u < 0 || v < 0 || u + v > 1)
         return -1.0;
     return t;
+#endif
 }
 
 Color ray_color(Win *win, Ray ray, int depth)
@@ -128,7 +133,7 @@ Color ray_color(Win *win, Ray ray, int depth)
     {
         float closest = FLT_MAX;
         int hit_index = -1;
-        float x = .0;
+        float x = 0;
         for (int i = 0; i < scene->pos; i++)
         {
             if (scene->objects[i].type == sphere_)
@@ -156,7 +161,6 @@ Color ray_color(Win *win, Ray ray, int depth)
             float r = (1.0 - a) + a * .3;
             float g = (1.0 - a) + a * .7;
             float b = (1.0 - a) + a * 1.0;
-
             light = add_vec3(light, mul_vec3_(attenuation, (Color){r, g, b}));
             break;
         }
@@ -166,14 +170,170 @@ Color ray_color(Win *win, Ray ray, int depth)
     return light;
 }
 
+// mlx
+int frame;
+Color *sum;
+
+void translate(Scene *scene, Vec3 move)
+{
+    scene->camera = add_vec3(scene->camera, move);
+    scene->cam_dir = add_vec3(scene->cam_dir, move);
+    // printf("2. %p\n", scene);
+    frame = 0;
+    free(sum);
+    sum = NULL;
+}
+
+Vec3 rotate(float angle, Vec3 u, int axes)
+{
+    float cos_ = cos(angle);
+    float sin_ = sin(angle);
+    switch (axes)
+    {
+    case 'x':
+    {
+        return (Vec3){
+            u.x,
+            u.y * cos_ - u.z * sin_,
+            u.y * sin_ + u.z * cos_};
+    }
+    case 'y':
+    {
+        return (Vec3){
+            u.x * cos_ + u.z * sin_,
+            u.y,
+            -u.x * sin_ + u.z * cos_,
+        };
+    }
+    case 'z':
+    {
+        return (Vec3){
+            u.x * cos_ - u.y * sin_,
+            u.x * sin_ + u.y * cos_,
+            u.z};
+    }
+    default:
+    {
+        printf("Error in rotation\n");
+        exit(0);
+    }
+    }
+    return (Vec3){};
+}
+
+void init(Win *win);
+int listen_on_key(int code, Win *win)
+{
+    float angle = 10;
+    Scene *scene = &win->scene;
+    struct
+    {
+        Vec3 move;
+        char *msg;
+    } trans[1000] = {
+        [FORWARD] = {(Vec3){0, 0, -.5}, "forward"},
+        [BACKWARD] = {(Vec3){0, 0, .5}, "backward"},
+        [UP] = {(Vec3){0, .5, 0}, "up"},
+        [DOWN] = {(Vec3){0, -.5, 0}, "down"},
+        [LEFT] = {(Vec3){-.5, 0, 0}, "left"},
+        [RIGHT] = {(Vec3){.5, 0, 0}, "right"},
+    };
+
+    switch (code)
+    {
+    case ESC:
+        mlx_destroy_window(win->mlx, win->win);
+        exit(0);
+    case FORWARD:
+    case BACKWARD:
+    case UP:
+    case DOWN:
+    case RIGHT:
+    case LEFT:
+        printf("%s\n", trans[code].msg);
+        translate(scene, trans[code].move);
+        break;
+    case ROTATE_RIGHT:
+    {
+        printf("rotate right\n");
+        frame = 0;
+        free(sum);
+        sum = NULL;
+        scene->cam_dir = rotate(degrees_to_radians(angle), scene->cam_dir, 'y');
+        break;
+    }
+    case ROTATE_LEFT:
+    {
+        printf("rotate left\n");
+        frame = 0;
+        free(sum);
+        sum = NULL;
+        scene->cam_dir = rotate(degrees_to_radians(-angle), scene->cam_dir, 'y');
+        break;
+    }
+    case RESET:
+    {
+        printf("reset\n");
+        frame = 0;
+        free(sum);
+        sum = NULL;
+        scene->camera = (Vec3){0, 0, FOCAL_LEN};
+        scene->cam_dir = (Vec3){0, 0, 0};
+        break;
+    }
+    default:
+        printf("keyboard: %d\n", code);
+        return 0;
+    }
+    init(win);
+    printf("Pos (%f, %f, %f)\n", scene->camera.x, scene->camera.y, scene->camera.z);
+    return (0);
+}
+
+int on_mouse_move(int x, int y, Win *win)
+{
+    // width = 600
+    // height = 600
+
+    return 0;
+}
+
+int on_mouse_down(int code, int x, int y, Win *win)
+{
+    /*
+        events:
+            clique: left, right
+            scroll: up down
+    */
+    Scene *scene = &win->scene;
+    struct
+    {
+        Vec3 move;
+        char *msg;
+    } trans[1000] = {
+        [SCROLL_UP] = {(Vec3){0, 0, -.1}, "forward"},
+        [SCROLL_DOWN] = {(Vec3){0, 0, .1}, "backward"},
+    };
+    switch (code)
+    {
+    case SCROLL_UP:
+    case SCROLL_DOWN:
+        printf("%s\n", trans[code].msg);
+        translate(scene, trans[code].move);
+        break;
+    default:
+        printf("mouse: %d, (%d, %d)\n", code, x, y);
+        return 0;
+    }
+    init(win);
+    return 0;
+}
+
 int draw(void *ptr)
 {
-    static int frame;
-    static Color *sum;
     struct timespec time_start, time_end;
     clock_gettime(CLOCK_MONOTONIC, &time_start);
     frame++;
-
     Win *win = (Win *)ptr;
     Scene *scene = &win->scene;
     if (sum == NULL)
@@ -202,61 +362,63 @@ int draw(void *ptr)
     mlx_put_image_to_window(win->mlx, win->win, win->img, 0, 0);
     clock_gettime(CLOCK_MONOTONIC, &time_end);
     float frame_time = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0;
-    printf("%6.2f: render frame %d\n", frame_time, frame);
+    if (frame % 100 == 0)
+        printf("%6.2f: render frame %d\n", frame_time, frame);
     return 0;
+}
+
+void init(Win *win)
+{
+    Scene *scene = &win->scene;
+    scene->view_angle = degrees_to_radians(60); // TODO: maybe it's useless
+    /*
+        translation: transl camera and cam_dir   (key board)
+        rotation:    rotate cam_dir over camera, (listen_on_mouse)
+    */
+    scene->w = mul_vec3(-1, unit_vector(scene->cam_dir)); // step in z axis and z+
+    Vec3 upv = (Vec3){0, 1, 0};                           // used for getting u,v
+    scene->len = 1;                                       // length(sub_vec3(scene->camera, scene->cam_dir));    // distance from screen
+    float tang = tan(scene->view_angle / 2);
+    float screen_height = 2 * tang * scene->len;
+    float screen_width = screen_height * ((float)win->width / win->height);
+
+    scene->u = unit_vector(cross_(upv, scene->w));      // x+ (get v vector)
+    scene->v = unit_vector(cross_(scene->w, scene->u)); // y+ (get u vector)
+
+    // viewport steps
+    scene->screen_u = mul_vec3(screen_width, scene->u);
+    scene->screen_v = mul_vec3(-screen_height, scene->v);
+    // window steps
+    scene->pixel_u = div_vec3(scene->screen_u, win->width);
+    scene->pixel_v = div_vec3(scene->screen_v, win->height);
+
+    Vec3 screen_center = add_vec3(scene->camera, mul_vec3(-scene->len, scene->w));
+    Vec3 upper_left = sub_vec3(screen_center, div_vec3(add_vec3(scene->screen_u, scene->screen_v), 2)); // center - screen_u / 2 - screen_v / 2 = center - (screen_u+screen_v)/2
+    scene->first_pixel = add_vec3(upper_left, div_vec3(add_vec3(scene->pixel_u, scene->pixel_v), 2));   // upper_left + (pixel_u + pixel_v) / 2
 }
 
 int main(void)
 {
     Win win = {0};
-    Scene *scene = &win.scene;
     win.width = 512;
-    win.height = (int)((float)win.width / 1.0);
+    win.height = (int)((float)win.width / 1);
     if (win.height < 1)
         win.height = 1;
-
-    scene->view_angle = degrees_to_radians(60);
-    scene->camera = (Vec3){0, 0, -1};
-    scene->camera_dir = sub_vec3((Vec3){0, 0, 0}, scene->camera); // direction
-    Vec3 rightv = (Vec3){1, 0, 0};                                // used for getting u,v,w
-
-    scene->len = 2; // length(sub_vec3(scene->camera, scene->camera_dir)); // distance from screen
-    float tang = tan(scene->view_angle / 2);
-    float screen_height = 2 * tang * scene->len;
-    float screen_width = screen_height * ((float)win.width / win.height);
-
-    scene->w = unit_vector(div_vec3(scene->camera_dir, scene->len)); // unit_vector(sub_vec3(scene->camera_dir, scene->camera)); // lookat - camera  z+ (get w vector)
-    scene->v = unit_vector(cross_(rightv, scene->w));                // y+ (get v vector)
-    scene->u = unit_vector(cross_(scene->w, scene->v));              // x+ (get u vector)
-
-    // viewport steps
-    scene->screen_u = mul_vec3(screen_width, scene->u);
-    scene->screen_v = mul_vec3(screen_height, scene->v);
-    // window steps
-    scene->pixel_u = div_vec3(scene->screen_u, win.width);
-    scene->pixel_v = div_vec3(scene->screen_v, win.height);
-
-    Vec3 screen_center = add_vec3(scene->camera, mul_vec3(scene->len, scene->w));                       // camera + len * w
-    Vec3 upper_left = sub_vec3(screen_center, div_vec3(add_vec3(scene->screen_u, scene->screen_v), 2)); // center - screen_u / 2 - screen_v / 2 = center - (screen_u+screen_v)/2
-    scene->first_pixel = add_vec3(upper_left, div_vec3(add_vec3(scene->pixel_u, scene->pixel_v), 2));   // upper_left + (pixel_u + pixel_v) / 2
-
-    // add objects
+    // Scene *scene = &win.scene;
+    win.scene.objects = calloc(300000, sizeof(Obj));
+    win.scene.camera = (Vec3){0, 0, FOCAL_LEN};
+    win.scene.cam_dir = (Vec3){0, 0, -1};
+    init(&win);
 #if 0
-    Vec3 colors[] = {
-        // {1, 1, 1},
-        {0.92, 0.19, 0.15},
-        {0.42, 0.92, 0.72},
-        {0.42, 0.87, 0.92},
-        {0.30, 0.92, 0.64},
-        {0.39, 0.92, 0.63},
-        {0.42, 0.92, 0.80},
-        {0.47, 0.16, 0.92},
-        {0.42, 0.58, 0.92},
-        {0.92, 0.40, 0.30},
-        {0.61, 0.75, 0.24},
-        {0.83, 0.30, 0.92},
-        {0.23, 0.92, 0.08},
-    };
+    parse_obj(&win.scene, "cube.obj");
+#elif 0
+    // // add objects
+    Vec3 p1, p2, p3;
+    p1 = (Vec3){0, 0, 0};
+    p2 = (Vec3){-1, 0, 0};
+    p3 = (Vec3){0, -1, 0};
+    win.scene.objects[win.scene.pos++] = new_triangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+#else
     struct
     {
         Vec3 normal;
@@ -264,11 +426,11 @@ int main(void)
         Mat mat;
     } plans[] = {
         {(Vec3){}, 0, 0},
-        {(Vec3){0, -1, 0}, 4, Abs_}, // up
-        {(Vec3){0, 1, 0}, 4, Abs_},  // down
+        {(Vec3){0, -1, 0}, 4, Abs_},  // up
+        {(Vec3){0, 1, 0}, 4, Abs_},   // down
         {(Vec3){0, 0, 1}, 12, Refr_}, // behind
-        {(Vec3){1, 0, 0}, 4, Abs_},  // right
-        {(Vec3){-1, 0, 0}, 4, Abs_}, // left
+        {(Vec3){1, 0, 0}, 4, Abs_},   // right
+        {(Vec3){-1, 0, 0}, 4, Abs_},  // left
     };
     struct
     {
@@ -276,25 +438,25 @@ int main(void)
         float rad;
         Mat mat;
     } spheres[] = {
+        {(Vec3){0, 0, -5}, .5, Abs_},  // center
+        {(Vec3){-1, 0, -5}, .5, Abs_}, // left
+        {(Vec3){1, 0, -5}, .5, Abs_},  // right
         {(Vec3){}, 0, 0},
-        {(Vec3){0, 0, 12}, 2, Abs_}, // center
-        {(Vec3){0, 5, 8}, 2, Abs_},  // up
-        {(Vec3){-5, 0, 8}, 2, Abs_}, // left
         {(Vec3){5, 0, 8}, 2, Abs_},  // right
         {(Vec3){0, -5, 8}, 2, Abs_}, // down
     };
-
+    Color colors[] = COLORS;
     int i = 0;
     while (spheres[i].mat)
     {
         Vec3 org = spheres[i].org;
         float rad = spheres[i].rad;
         Mat mat = spheres[i].mat;
-        scene->objects[scene->pos] = new_sphere(org, rad, colors[scene->pos % (sizeof(colors) / sizeof(*colors))], mat);
-        // scene->objects[scene->pos].light_intensity = 1;
-        // scene->objects[scene->pos].light_color = (Color){1, 1, 1};
+        win.scene.objects[win.scene.pos] = new_sphere(org, rad, colors[win.scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
+        // win.scene.objects[win.scene.pos].light_intensity = 1;
+        // win.scene.objects[win.scene.pos].light_color = (Color){1, 1, 1};
         i++;
-        scene->pos++;
+        win.scene.pos++;
     }
     i = 0;
     while (plans[i].mat)
@@ -302,18 +464,13 @@ int main(void)
         Vec3 normal = plans[i].normal;
         float dist = plans[i].dist;
         Mat mat = plans[i].mat;
-        scene->objects[scene->pos] = new_plan(normal, dist, colors[scene->pos % (sizeof(colors) / sizeof(*colors))], mat);
+        win.scene.objects[win.scene.pos] = new_plan(normal, dist, colors[win.scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
         i++;
-        scene->pos++;
+        win.scene.pos++;
     }
-    scene->objects[0].light_intensity = 1;
-    scene->objects[0].light_color = (Color){1, 1, 1};
-#else
-    Vec3 p1, p2, p3;
-    p1 = (Vec3){0, 1, 2};
-    p2 = (Vec3){-1, 0, 2};
-    p3 = (Vec3){1, -1, 2};
-    scene->objects[scene->pos++] = new_triangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+    // win.scene.objects[0].light_intensity = 1;
+    // win.scene.objects[0].light_color = (Color){1, 1, 1};
+    // win.scene.objects[win.scene.pos++] = new_sphere((Vec3){0, 0, 1}, 1, (Color){1, 0, 0}, Abs_);
 #endif
 
     win.mlx = mlx_init();
@@ -322,6 +479,10 @@ int main(void)
     win.addr = mlx_get_data_addr(win.img, &win.bits_per_pixel, &win.line_length, &win.endian);
 
     mlx_loop_hook(win.mlx, draw, &win);
-    mlx_key_hook(win.win, listen, &win);
+    unsigned mouse_mask = (1 << 15) | (1 << 0) | (1 << 2) | (1 << 19) | (1 << 3) | (1 << 1) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 8) | (1 << 16) | (1 << 23);
+    mlx_hook(win.win, 2, 1L << 0, listen_on_key, &win);
+    mlx_hook(win.win, 4, mouse_mask, on_mouse_down, &win);
+    mlx_hook(win.win, 6, mouse_mask, on_mouse_move, &win);
+
     mlx_loop(win.mlx);
 }
