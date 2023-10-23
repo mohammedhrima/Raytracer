@@ -41,7 +41,7 @@ float hit_triangle(Obj trian, Ray ray, float min, float max)
     t /= div;
     if (t <= min || t >= max)
         return -1.0;
-#if 1
+
     Vec3 p = sub_vec3(point_at(ray, t), trian.p1);
 
     Vec3 u = sub_vec3(trian.p2, trian.p1);
@@ -55,22 +55,7 @@ float hit_triangle(Obj trian, Ray ray, float min, float max)
         return -1;
 
     return t;
-#else
-    Vec3 v0 = sub_vec3(trian.p2, trian.p1);
-    Vec3 v1 = sub_vec3(trian.p3, trian.p1);
-    Vec3 v2 = sub_vec3(point_at(ray, t), trian.p1);
-    float dot00 = dot(v0, v0);
-    float dot01 = dot(v0, v1);
-    float dot02 = dot(v0, v2);
-    float dot11 = dot(v1, v1);
-    float dot12 = dot(v1, v2);
-    float invDenom = 1.0 / (dot00 * dot11 - dot01 * dot01);
-    float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
-    float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
-    if (u < 0 || v < 0 || u + v > 1)
-        return -1.0;
-    return t;
-#endif
+
 }
 
 float v = 0;
@@ -116,15 +101,7 @@ Ray render_object(Obj obj, Ray ray, float closest)
     if (obj.type == sphere_)
         cp_norm = unit_vector(sub_vec3(p, obj.center));
     if (obj.type == hemisphere_)
-    {
         cp_norm = unit_vector(sub_vec3(p, obj.center));
-        // Vec3 OC = sub_vec3(ray.org, obj.center);
-        // float a = length_squared(ray.dir);
-        // float c = length_squared(OC) - obj.radius * obj.radius;
-        // float nd = c / (a * closest);
-        // if (nd > closest)
-        //     render_object(obj, ray, nd);
-    }
     else if (obj.type == plan_ || obj.type == triangle_)
         cp_norm = obj.normal;
 
@@ -393,30 +370,20 @@ int draw(void *ptr)
     Scene *scene = &win->scene;
     frame++;
     v += va;
-    // va -= vaa;
     printf(">%f\n", v);
     if (v < 0)
     {
-        free(sum);
-        sum = NULL;
+
         va = -va;
-        // vaa = -vaa;
         frame = 1;
-        // win->scene.objects[0].mat = Abs_;
     }
     if (v > 30.0)
     {
-        free(sum);
-        sum = NULL;
+
         va = -va;
-        // vaa = -vaa;
         frame = 1;
-        // TODO : check it
-        // win->scene.objects[0].mat = Refl_;
     }
 
-    if (sum == NULL)
-        sum = calloc(win->width * win->height, sizeof(Color));
 #pragma omp parallel for
     for (int h = 0; h < win->height; h++)
     {
@@ -426,10 +393,6 @@ int draw(void *ptr)
             Vec3 dir = sub_vec3(pixel_center, scene->camera);
             Ray ray = (Ray){.org = scene->camera, .dir = dir};
             Color pixel = ray_color(win, ray, 5);
-#if 0
-            sum[h * win->width + w] = add_vec3(sum[h * win->width + w], pixel);
-            pixel = div_vec3(sum[h * win->width + w], (float)frame);
-#endif
             if (pixel.r > 1)
                 pixel.r = 1;
             if (pixel.g > 1)
@@ -496,76 +459,8 @@ int main(void)
     win.scene.cam_dir = (Vec3){0, 0, -1};
     init(&win);
 
-#if 0
-    parse_obj(&win.scene, "cube.obj");
-#elif 0
-    // // add objects
-    Vec3 p1, p2, p3;
-    p1 = (Vec3){0, 0, 0};
-    p2 = (Vec3){-1, 0, 0};
-    p3 = (Vec3){0, -1, 0};
-    win.scene.objects[win.scene.pos++] = new_triangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
-#elif 1
     Color colors[] = COLORS;
     win.scene.objects[win.scene.pos++] = new_hemisphere((Vec3){0, 0, 0}, 1, (Vec3){0, 1, 0}, colors[0], Abs_);
-    // win.scene.objects[win.scene.pos++] = new_sphere((Vec3){0, 0, 0}, 1, colors[0], Abs_);
-
-#else
-    struct
-    {
-        Vec3 normal;
-        float dist; // distance from camera
-        Mat mat;
-    } plans[] = {
-        {(Vec3){0, -1, 0}, 4, Abs_},  // up
-        {(Vec3){0, 1, 0}, 4, Abs_},   // down
-        {(Vec3){0, 0, 1}, 12, Refr_}, // behind
-        {(Vec3){1, 0, 0}, 4, Abs_},   // right
-        {(Vec3){-1, 0, 0}, 4, Abs_},  // left
-        {(Vec3){}, 0, 0},
-    };
-
-    struct
-    {
-        Vec3 org;
-        float rad;
-        Mat mat;
-    } spheres[] = {
-        {(Vec3){0, 0, -5}, 1, Abs_},   // center
-        {(Vec3){-1, 0, -5}, .5, Abs_}, // left
-        {(Vec3){1, 0, -5}, .5, Abs_},  // right
-        {(Vec3){5, 0, -8}, 2, Abs_},   // right
-        {(Vec3){0, -1, -8}, 2, Abs_},  // down
-        {(Vec3){}, 0, 0},
-    };
-    Color colors[] = COLORS;
-    int i = 0;
-    while (spheres[i].mat)
-    {
-        Vec3 org = spheres[i].org;
-        float rad = spheres[i].rad;
-        Mat mat = spheres[i].mat;
-        win.scene.objects[win.scene.pos] = new_sphere(org, rad, colors[win.scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
-        win.scene.objects[win.scene.pos].light_intensity = 1;
-        win.scene.objects[win.scene.pos].light_color = (Color){1, 1, 1};
-        i++;
-        win.scene.pos++;
-    }
-    i = 0;
-    while (plans[i].mat)
-    {
-        Vec3 normal = plans[i].normal;
-        float dist = plans[i].dist;
-        Mat mat = plans[i].mat;
-        win.scene.objects[win.scene.pos] = new_plan(normal, dist, colors[win.scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
-        i++;
-        win.scene.pos++;
-    }
-    // win.scene.objects[0].light_intensity = 1;
-    // win.scene.objects[0].light_color = (Color){1, 1, 1};
-    // win.scene.objects[win.scene.pos++] = new_sphere((Vec3){0, 0, 1}, 1, (Color){1, 0, 0}, Abs_);
-#endif
-
     win.mlx = mlx_init();
     win.win = mlx_new_window(win.mlx, win.width, win.height, "Mini Raytracer");
     win.img = mlx_new_image(win.mlx, win.width, win.height);
