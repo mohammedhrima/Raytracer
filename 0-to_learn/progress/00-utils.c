@@ -10,6 +10,8 @@
 #include <time.h>
 #include <string.h>
 
+#define FRAMES_LEN 1000
+
 // key board
 #define ESC 53
 #define UP 126
@@ -18,8 +20,30 @@
 #define RIGHT 124
 #define FORWARD 91
 #define BACKWARD 84
+
+#ifndef FOCAL_LEN
+#define FOCAL_LEN 2
+#endif
+
+// reset
 #define RESET 15
-#define FOCAL_LEN 10
+// recoding mode
+#define C_KEY 8
+// play mode
+#define P_KEY 35
+// save buffer
+#define S_KEY 0
+
+// start / stop recording
+// play / pause frames
+#define SPACE 49
+
+// move between buffers
+#define PLUS 69
+#define MINUS 78
+
+// delete frames buffer
+#define DELETE 117
 
 #define ROTATE_LEFT 88
 #define ROTATE_RIGHT 86
