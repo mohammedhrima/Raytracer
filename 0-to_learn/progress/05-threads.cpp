@@ -24,7 +24,17 @@
 #include <time.h>
 #include <string.h>
 
-#define CPP true
+#ifndef THREADS
+#define THREADS 1
+#endif
+
+#if THREADS
+#define THREADS_LEN 4
+#else
+#define THREADS_LEN 1
+#endif
+
+#define SPLIT_SCREEN_BETWEEN_THREADS 1
 
 #define ZERO .0001f
 // colors
@@ -39,7 +49,15 @@
 #define REPEAT GLFW_REPEAT
 
 // keyboard
-#define ESC GLFW_KEY_ESCAPE
+#define ESC 256
+
+#define RESET 82
+#define UP 265
+#define DOWN 264
+#define LEFT 263
+#define RIGHT 262
+#define FORWARD 328
+#define BACKWARD 322
 
 #define ZERO .0001f
 #define RED 0xff0000
@@ -180,10 +198,11 @@ typedef struct
     GLFWwindow *window;
     unsigned int *pixels;
     Scene scene;
+    _Atomic int thread_finished[THREADS_LEN];
 } Win;
 
 // utils
-static unsigned rng_state;
+static _Atomic unsigned rng_state;
 static const double one_over_uint_max = 1.0 / UINT_MAX;
 const float pi = 3.1415926535897932385;
 unsigned rand_pcg()
@@ -444,16 +463,56 @@ void error_callback(int error, const char *description)
     std::cerr << "Error: " << description << std::endl;
 }
 
+Win *globalwin;
+extern _Atomic(int) frame_index;
+extern  Color *sum;
+
+void translate( Vec3 move)
+{
+    Vec3 x = move.x * globalwin->scene.u;
+    Vec3 y = move.y * globalwin->scene.v;
+    Vec3 z = move.z * globalwin->scene.w;
+
+    globalwin->scene.camera = globalwin->scene.camera + x + y + z;
+    frame_index = 1;
+    // free(sum);
+    // sum = NULL;
+    memset(sum, 0, globalwin->width * globalwin->height * sizeof(Color));
+}
+
+void init(Win *win);
 void listen_on_key(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
+    struct
+    {
+        Vec3 move;
+        char *msg;
+    } trans[1000] = {
+        [FORWARD] = {(Vec3){0, 0, -.5}, (char *)"forward"},
+        [BACKWARD] = {(Vec3){0, 0, .5}, (char *)"backward"},
+        [UP] = {(Vec3){0, .5, 0}, (char *)"up"},
+        [DOWN] = {(Vec3){0, -.5, 0}, (char *)"down"},
+        [LEFT] = {(Vec3){-.5, 0, 0}, (char *)"left"},
+        [RIGHT] = {(Vec3){.5, 0, 0}, (char *)"right"},
+    };
     switch (action)
     {
-    case GLFW_PRESS:
+    case PRESS:
     {
         switch (key)
         {
-        case GLFW_KEY_ESCAPE:
+        case ESC:
             glfwSetWindowShouldClose(window, GLFW_TRUE);
+            break;
+        case FORWARD:
+        case BACKWARD:
+        case UP:
+        case DOWN:
+        case RIGHT:
+        case LEFT:
+            printf("%s\n", trans[key].msg);
+            translate( trans[key].move);
+            init(globalwin);
             break;
         default:
             std::cerr << "key pressed: " << key << std::endl;
@@ -461,13 +520,17 @@ void listen_on_key(GLFWwindow *window, int key, int scancode, int action, int mo
         }
         break;
     }
-    case GLFW_RELEASE:
-    case GLFW_REPEAT:
+    case RELEASE:
+    case REPEAT:
         break;
     default:
         std::cerr << "Unknown action: (" << action << ")" << std::endl;
         break;
     }
+}
+
+void mouse_move(GLFWwindow *window, double xpos, double ypos)
+{
 }
 
 Win *new_window(int width, int height, char *title)
@@ -478,10 +541,11 @@ Win *new_window(int width, int height, char *title)
         exit(-1);
     }
     Win *win = (Win *)calloc(1, sizeof(Win));
+    globalwin = win;
     win->width = width;
     win->height = height;
     glfwSetErrorCallback(error_callback);
-    win->pixels = (unsigned int *)calloc(win->width * win->height, sizeof(int));
+    win->pixels = (unsigned int *)calloc(win->width * win->height, sizeof(unsigned int));
 
     // init window
     win->window = glfwCreateWindow(win->width, win->height, title, NULL, NULL);
@@ -493,20 +557,39 @@ Win *new_window(int width, int height, char *title)
     glfwSetWindowPos(win->window, 10, 700);
     glfwMakeContextCurrent(win->window);
     glfwSetKeyCallback(win->window, listen_on_key);
+
+    glfwSetCursorPosCallback(win->window, mouse_move);
     glewInit();
     return win;
 }
 
 void update_window(Win *win)
 {
-    unsigned int *pixels = win->pixels;
+    // unsigned int *pixels = win->pixels;
+
+    for (int i = 0; i < THREADS_LEN; i++)
+        win->thread_finished[i] = 0;
+    while (1)
+    {
+        int finished = 1;
+
+        for (int i = 0; i < THREADS_LEN; i++)
+        {
+            if (!win->thread_finished[i])
+                finished = 0;
+        }
+        if (finished)
+            break ;
+        usleep(10);
+    }
+
     glPointSize(4.0f); // Adjust the point size as needed ????
     glBegin(GL_POINTS);
     for (int i = 0; i < win->width * win->height; i++)
     {
-        unsigned char r = (pixels[i] >> 16) & 0xFF;
-        unsigned char g = (pixels[i] >> 8) & 0xFF;
-        unsigned char b = pixels[i] & 0xFF;
+        unsigned char r = (win->pixels[i] >> 16) & 0xFF;
+        unsigned char g = (win->pixels[i] >> 8) & 0xFF;
+        unsigned char b = win->pixels[i] & 0xFF;
         glColor3f(r / 255.0f, g / 255.0f, b / 255.0f);
         float x = (i % win->width) / (float)win->width * 2 - 1;
         float y = 1 - (i / win->width) / (float)win->height * 2;
@@ -754,3 +837,284 @@ Vec3 rotate(float angle, Vec3 u, int axes)
     }
     return (Vec3){};
 }
+float y_rotation = 0;
+float x_rotation = 0;
+
+void init(Win *win)
+{
+    Scene *scene = &win->scene;
+    scene->view_angle = degrees_to_radians(60); // TODO: maybe it's useless
+    /*
+        translation: transl camera and cam_dir   (key board)
+        rotation:    rotate cam_dir over camera, (listen_on_mouse)
+    */
+    scene->cam_dir = rotate(degrees_to_radians(x_rotation), (Vec3){0, 0, -1}, 'y');
+    scene->cam_dir = rotate(degrees_to_radians(y_rotation), scene->cam_dir, 'x');
+    scene->w = -1 * unit_vector(scene->cam_dir); // step in z axis and z
+
+    Vec3 upv = (Vec3){0, 1, 0}; // used for getting u,v
+    upv = rotate(degrees_to_radians(x_rotation), upv, 'y');
+    upv = rotate(degrees_to_radians(y_rotation), upv, 'x');
+
+    scene->len = 1; // TODO: maybe it's useless
+    float tang = tan(scene->view_angle / 2);
+    float screen_height = 2 * tang * scene->len;
+    float screen_width = screen_height * ((float)win->width / win->height);
+
+    scene->u = unit_vector(cross_(upv, scene->w));      // x+ (get v vector)
+    scene->v = unit_vector(cross_(scene->w, scene->u)); // y+ (get u vector)
+
+    // viewport steps
+    scene->screen_u = screen_width * scene->u;
+    scene->screen_v = -screen_height * scene->v;
+    // window steps
+    scene->pixel_u = scene->screen_u / win->width;
+    scene->pixel_v = scene->screen_v / win->height;
+
+    Vec3 screen_center = scene->camera + (-scene->len * scene->w);
+    Vec3 upper_left = screen_center - (scene->screen_u + scene->screen_v) / 2;
+    scene->first_pixel = upper_left + (scene->pixel_u + scene->pixel_v) / 2;
+
+
+    
+}
+
+void add_objects(Win *win)
+{
+    struct
+    {
+        Vec3 normal;
+        float dist; // distance from camera
+        Mat mat;
+    } plans[] = {
+        {(Vec3){0, -1, 0}, -4, Abs_}, // up
+        {(Vec3){0, 1, 0}, -4, Abs_},  // down
+        {(Vec3){0, 0, 1}, -12, Abs_}, // behind
+        {(Vec3){1, 0, 0}, -4, Abs_},  // right
+        {(Vec3){-1, 0, 0}, -4, Abs_}, // left
+        {(Vec3){}, 0, (Mat)0},
+    };
+    struct
+    {
+        Vec3 org;
+        float rad;
+        Mat mat;
+    } spheres[] = {
+        {(Vec3){0, 1, -2}, .5, Refl_},
+        {(Vec3){-1, 0, -1}, .5, Refl_},
+        {(Vec3){1, 0, -1}, .5, Refl_},
+        {(Vec3){0, -.5, -2}, .5, Refl_},
+        {(Vec3){0, -5, -.5}, .5, Refl_},
+        {(Vec3){}, 0, (Mat)0},
+    };
+    Color colors[] = COLORS;
+    int i = 0;
+    while (spheres[i].mat)
+    {
+        Vec3 org = spheres[i].org;
+        float rad = spheres[i].rad;
+        Mat mat = spheres[i].mat;
+        win->scene.objects[win->scene.pos] = new_sphere(org, rad, colors[win->scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
+        // if (i == 0)
+        // {
+        //     win->scene.objects[win->scene.pos].light_intensity = 40;
+        //     win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
+        // }
+        i++;
+        win->scene.pos++;
+    }
+    i = 0;
+    while (plans[i].mat)
+    {
+        Vec3 normal = plans[i].normal;
+        float dist = plans[i].dist;
+        Mat mat = plans[i].mat;
+        win->scene.objects[win->scene.pos] = new_plan(normal, dist, colors[win->scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
+        if (i == 0)
+        {
+            win->scene.objects[win->scene.pos].light_intensity = 2;
+            win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
+        }
+        i++;
+        win->scene.pos++;
+    }
+}
+
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+void print_time(time_t frame_time, int frame_index)
+{
+#if THREADS
+    static int i;
+    if (i == 0)
+    {
+#endif
+        pthread_mutex_lock(&mtx);
+        printf("%6ld: render frame %d\n", frame_time, frame_index);
+        pthread_mutex_unlock(&mtx);
+#if THREADS
+    }
+    i = (i + 1) % 4;
+#endif
+}
+
+void divideWindow(Win *win, int threadNum, int &x_start, int &y_start, int &w, int &h)
+{
+    int cols = ceil(sqrt(THREADS_LEN));
+    int rows = ceil((float)THREADS_LEN / cols);
+
+    int col = threadNum % cols;
+    int row = threadNum / cols;
+    int cellWidth = win->width / cols ;
+    int cellHeight = win->height / rows;
+    x_start = col * cellWidth;
+    y_start = row * cellHeight;
+    w = cellWidth - 1;
+    h = cellHeight - 1;
+}
+
+
+_Atomic(int) frame_index;
+ Color *sum;
+int curr_x;
+int curr_y;
+int old_x;
+int old_y;
+
+int is_mouse_down = 0;
+//     0   to width/2   &&    0     to height/2
+// width/2 to width     &&    0     to height/2
+//     0   to width/2   && height/2 to height
+// width/2 to width     && height/2 to height
+
+void draw(Win *win, int x_start, int y_start, int width, int height)
+{
+    Scene *scene = &win->scene;
+
+    frame_index++;
+#if !THREADS
+#pragma omp parallel for
+#endif
+    for (int h = x_start; h < x_start + width; h++)
+    {
+        for (int w = y_start; w < y_start + height; w++)
+        {
+            Vec3 pixel_center = scene->first_pixel + (w + random_float(0, 1)) * scene->pixel_u + (h + random_float(0, 1)) * scene->pixel_v;
+            Vec3 dir = pixel_center - scene->camera;
+            Ray ray = (Ray){.org = scene->camera, .dir = dir};
+            Color pixel = ray_color(win, ray, 5);
+            sum[h * win->width + w] = sum[h * win->width + w] + pixel;
+            pixel = sum[h * win->width + w] / (float)frame_index;
+            if (pixel.r > 1)
+                pixel.r = 1;
+            if (pixel.g > 1)
+                pixel.g = 1;
+            if (pixel.b > 1)
+                pixel.b = 1;
+            // if (w >= x_start && w < x_start + width && h >= y_start && h < y_start + height)
+            win->pixels[h * win->width + w] = ((int)(255.999 * sqrtf(pixel.r)) << 16) | ((int)(255.999 * sqrtf(pixel.g)) << 8) | ((int)(255.999 * sqrtf(pixel.b)));
+        }
+    }
+}
+
+typedef struct
+{
+    pthread_t thread;
+    Win *win;
+    int idx;
+} Multi;
+
+void *threadFunction(void *arg)
+{
+    Multi *multi = (Multi *)arg;
+    Win *win = multi->win;
+    time_t time_start;
+    time_t time_end;
+
+#if THREADS
+    while (1)
+    {
+        if (win->thread_finished[multi->idx])
+        {
+            usleep(1000);
+            continue;
+        }
+#if SPLIT_SCREEN_BETWEEN_THREADS
+        int x_start, y_start, width, height;
+        divideWindow(win, multi->idx, x_start, y_start, width, height);
+        draw(win, x_start, y_start, width, height);
+#else
+        int height;
+        height = win->height / THREADS_LEN;
+        draw(win, 0, multi->idx * height, win->width, height);
+#endif
+        win->thread_finished[multi->idx] = 1;
+        time_end = get_time();
+        // print_time(time_end - time_start, frame_index);
+
+    }
+#else
+    draw(win, 0, 0, win->width, win->height);
+#endif
+    return nullptr;
+}
+
+Multi *new_multi(int idx, Win *win)
+{
+    Multi *multi = (Multi *)calloc(1, sizeof(Multi));
+    multi->idx = idx;
+    multi->win = win;
+    return multi;
+}
+
+int main(void)
+{
+    int width = 512;
+    int height = width / 1;
+    if (height < 1)
+        height = 1;
+    Win *win = new_window(width, height, (char *)"Mini Raytracer");
+    win->scene.objects = (Obj *)calloc(100, sizeof(Obj));
+    win->scene.camera = (Vec3){0, 0, FOCAL_LEN};
+    win->scene.cam_dir = (Vec3){0, 0, -1};
+
+    for (int i = 0; i < THREADS_LEN; i++)
+        win->thread_finished[i] = 1;
+    sum = (Color *)calloc(win->width * win->height, sizeof(Color));
+
+    init(win);
+    add_objects(win);
+
+    Multi *multis[THREADS_LEN + 1];
+    for (int i = 0; i < THREADS_LEN; i++)
+    {
+        multis[i] = new_multi(i, win);
+#if THREADS
+        pthread_create(&multis[i]->thread, nullptr, threadFunction, multis[i]);
+#endif
+    }
+
+    while (!glfwWindowShouldClose(win->window))
+    {
+#if THREADS
+        update_window(win);
+         usleep(1000000);
+#else
+        time_t time_start, time_end;
+        float frame_time;
+        time_start = get_time();
+        threadFunction(multis[0]);
+        time_end = get_time();
+        print_time(time_end - time_start, frame_index);
+        update_window(win);
+#endif
+    }
+
+#if THREADS
+    for (int i = 0; i < THREADS_LEN; i++)
+        pthread_join(multis[i]->thread, nullptr);
+#endif
+
+    glfwTerminate();
+    return 0;
+}
+

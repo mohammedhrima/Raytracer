@@ -501,12 +501,12 @@ int main(void)
         float dist; // distance from camera
         Mat mat;
     } plans[] = {
+        {(Vec3){0, -1, 0}, -4, Abs_}, // up
+        {(Vec3){0, 1, 0}, -4, Abs_},  // down
+        {(Vec3){0, 0, 1}, -12, Abs_}, // behind
+        {(Vec3){1, 0, 0}, -4, Abs_},  // right
+        {(Vec3){-1, 0, 0}, -4, Abs_}, // left
         {(Vec3){}, 0, 0},
-        {(Vec3){0, -1, 0}, 4, Abs_},  // up
-        {(Vec3){0, 1, 0}, 4, Abs_},   // down
-        {(Vec3){0, 0, 1}, 12, Refr_}, // behind
-        {(Vec3){1, 0, 0}, 4, Abs_},   // right
-        {(Vec3){-1, 0, 0}, 4, Abs_},  // left
     };
     struct
     {
@@ -514,12 +514,12 @@ int main(void)
         float rad;
         Mat mat;
     } spheres[] = {
-        {(Vec3){0, 0, -1}, .5, Abs_},  // center
-        {(Vec3){-1, 0, -1}, .5, Abs_}, // left
-        {(Vec3){1, 0, -1}, .5, Abs_},  // right
-        {(Vec3){}, 0, 0},
-        {(Vec3){5, 0, 8}, 2, Abs_},  // right
-        {(Vec3){0, -5, 8}, 2, Abs_}, // down
+        {(Vec3){0, 1, -2}, .5, Refl_},
+        {(Vec3){-1, 0, -1}, .5, Refl_},
+        {(Vec3){1, 0, -1}, .5, Refl_},
+        {(Vec3){0, -.5, -2}, .5, Refl_},
+        {(Vec3){0, -5, -.5}, .5, Refl_},
+        {(Vec3){}, 0, (Mat)0},
     };
     Color colors[] = COLORS;
     int i = 0;
@@ -540,12 +540,17 @@ int main(void)
         float dist = plans[i].dist;
         Mat mat = plans[i].mat;
         win.scene.objects[win.scene.pos] = new_plan(normal, dist, colors[win.scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
+        if (i == 0)
+        {
+            win.scene.objects[win.scene.pos].light_intensity = 1;
+            win.scene.objects[win.scene.pos].light_color = (Color){1, 1, 1};
+        }
         i++;
         win.scene.pos++;
     }
-    // win.scene.objects[0].light_intensity = 1;
-    // win.scene.objects[0].light_color = (Color){1, 1, 1};
-    // win.scene.objects[win.scene.pos++] = new_sphere((Vec3){0, 0, 1}, 1, (Color){1, 0, 0}, Abs_);
+    win.scene.objects[0].light_intensity = 1;
+    win.scene.objects[0].light_color = (Color){1, 1, 1};
+    win.scene.objects[win.scene.pos++] = new_sphere((Vec3){0, 0, 1}, 1, (Color){1, 0, 0}, Abs_);
 #endif
 
     win.mlx = mlx_init();

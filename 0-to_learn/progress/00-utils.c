@@ -10,7 +10,7 @@
 #include <time.h>
 #include <string.h>
 
-#define FRAMES_LEN 1000
+#define FRAMES_LEN 500
 
 // key board
 #define ESC 53

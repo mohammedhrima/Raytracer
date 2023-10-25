@@ -309,7 +309,7 @@ int listen_on_key(int code, Win *win)
 int on_mouse_move(int x, int y, Win *win)
 {
     Scene *scene = &win->scene;
-    if (is_mouse_down) // x >= 0 && x <= win->width && y >= 0 && y <= win->height)
+    if (is_mouse_down)
     {
         int dx = x - old_x;
         int dy = y - old_y;
