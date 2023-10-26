@@ -3,7 +3,7 @@ _Atomic(int) frame_index;
 
 int main()
 {
-    int width = 512;
+    int width = 1000;
     int height = width / 1;
     if (height < 1)
         height = 1;
@@ -35,12 +35,12 @@ int main()
         Vec3 move;
         char *msg;
     } trans[1000] = {
-        [FORWARD - 1073741900] = {(Vec3){0, 0, -.5}, (char *)"forward"},
-        [BACKWARD - 1073741900] = {(Vec3){0, 0, .5}, (char *)"backward"},
-        [UP - 1073741900] = {(Vec3){0, .5, 0}, (char *)"up"},
-        [DOWN - 1073741900] = {(Vec3){0, -.5, 0}, (char *)"down"},
-        [LEFT - 1073741900] = {(Vec3){-.5, 0, 0}, (char *)"left"},
-        [RIGHT - 1073741900] = {(Vec3){.5, 0, 0}, (char *)"right"},
+        [FORWARD - 1073741900] = {(Vec3){0, 0, -1}, (char *)"forward"},
+        [BACKWARD - 1073741900] = {(Vec3){0, 0, 1}, (char *)"backward"},
+        [UP - 1073741900] = {(Vec3){0, 1, 0}, (char *)"up"},
+        [DOWN - 1073741900] = {(Vec3){0, -1, 0}, (char *)"down"},
+        [LEFT - 1073741900] = {(Vec3){-1, 0, 0}, (char *)"left"},
+        [RIGHT - 1073741900] = {(Vec3){1, 0, 0}, (char *)"right"},
     };
 
     while (!quit)
@@ -66,18 +66,18 @@ int main()
                 {
                     scene->upv = (Vec3){0, 1, 0};
                     frame_index = 1;
-                    memset(sum, 0, win->width * win->height * sizeof(Color));
+                    memset(sum, COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
                     init(win);
                 }
                 break;
             case MOUSE_SCROLL:
                 if (win->ev.wheel.y > 0)
-                    translate(win, trans[FORWARD - 1073741900].move);
+                    translate(win, 2 * trans[FORWARD - 1073741900].move);
                 else
-                    translate(win, trans[BACKWARD - 1073741900].move);
+                    translate(win, 2 * trans[BACKWARD - 1073741900].move);
                 // scene->upv = (Vec3){0, 1, 0};
                 frame_index = 1;
-                memset(sum, 0, win->width * win->height * sizeof(Color));
+                memset(sum, COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
                 init(win);
                 break;
             case PRESS:
@@ -93,16 +93,15 @@ int main()
                     translate(win, trans[win->ev.key.keysym.sym - 1073741900].move);
                     // scene->upv = (Vec3){0, 1, 0};
                     frame_index = 1;
-                    memset(sum, 0, win->width * win->height * sizeof(Color));
+                    memset(sum, COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
                     init(win);
                     break;
                 case ESC:
                     quit = true;
                     break;
                 case RESET:
-                    clear_window(win, 0);
                     frame_index = 1;
-                    memset(sum, 0, win->width * win->height * sizeof(Color));
+                    memset(sum, COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
                     // scene->upv = (Vec3){0, 1, 0};
                     x_rotation = 0;
                     y_rotation = 0;

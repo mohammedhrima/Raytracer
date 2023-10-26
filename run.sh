@@ -8,6 +8,7 @@ if [ $1 ]; then
 fi
 
 if [ ! -e "$brew" ]; then
+  echo "brew not found"
   curl -fsSL https://rawgit.com/kube/42homebrew/master/install.sh | zsh
   source ~/.zshrc
 fi
@@ -15,23 +16,23 @@ fi
 # threads
 threads="$brew/opt/libomp/lib/libomp.dylib"
 if [ ! -e "$threads" ]; then
+  echo "libmop not found"
   brew install libomp
 fi
 
 if [ ! -e "$brew/opt/glfw/lib/libglfw.3.3.dylib" ]; then
+  echo "glfw3 not found"
   brew install glfw3
 fi
 
 if [ ! -e "$brew/opt/glew/lib/libGLEW.dylib" ]; then
+  echo "glew not found"
   brew install glew
 fi
 
 if [ ! -e "$brew/lib/libSDL2-2.0.0.dylib" ]; then
+  echo "sdl2 not found"
   brew install sdl2
-fi
-
-if [ ! -e "$threads" ]; then
-  brew install libomp
 fi
 
 threads="-Xpreprocessor -fopenmp $threads"

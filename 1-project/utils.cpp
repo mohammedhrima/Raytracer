@@ -1,4 +1,5 @@
 #include "/goinfre/mhrima/homebrew/opt/sdl2/include/SDL2/SDL.h"
+
 #include <iostream>
 #include <iomanip>
 #include <unistd.h>
@@ -51,7 +52,7 @@
 #define ZERO .0001f
 
 #ifndef FOCAL_LEN
-#define FOCAL_LEN 2
+#define FOCAL_LEN 10
 #endif
 
 #define THREADS 1
@@ -74,7 +75,8 @@ typedef enum
     sphere_ = 22,
     plan_,
     triangle_,
-    hemisphere_
+    hemisphere_,
+    rectangle_
 } Type;
 
 typedef union
@@ -123,6 +125,13 @@ typedef struct
                     Vec3 p1;
                     Vec3 p2;
                     Vec3 p3;
+                };
+                // rectangle
+                struct
+                {
+                    Vec3 A;
+                    Vec3 B;
+                    Vec3 C;
                 };
                 // Plan
                 float d;
@@ -332,6 +341,21 @@ Obj new_triangle(Vec3 p1, Vec3 p2, Vec3 p3, Color color, Mat mat)
     newobj.normal = cross_(unit_vector(p2 - p1), unit_vector(p3 - p1));
     newobj.color = color;
     newobj.mat = mat;
+    return newobj;
+}
+
+Obj new_rectangle(Vec3 A, Vec3 B, Vec3 C, Color color, Mat mat)
+{
+    Obj newobj = {};
+    newobj.type = rectangle_;
+    newobj.A = A;
+    newobj.B = B;
+    newobj.C = C;
+
+    newobj.normal = cross_(unit_vector(B - A), unit_vector(C - A));
+    newobj.color = color;
+    newobj.mat = mat;
+
     return newobj;
 }
 
@@ -548,6 +572,61 @@ float hit_triangle(Obj trian, Ray ray, float min, float max)
     return t;
 }
 
+typedef struct
+{
+    float x;
+    float y;
+} Vec2;
+
+Vec2 solve_2d_system_equation(Vec2 u, Vec2 d, Vec2 s)
+{
+    // det
+    float dt = u.x * d.y - u.y * d.x;
+    if (dt == 0)
+        return (Vec2){-1, -1};
+
+    // x
+    float dx = s.x * d.y - u.y * s.y;
+    float x = dx / dt;
+    if (x > 1 || x < 0)
+        return (Vec2){-1, -1};
+    // y
+    float dy = u.x * s.y - d.x * s.x;
+    float y = dy / dt;
+    if (y > 1 || y < 0)
+        return (Vec2){-1, -1};
+    return (Vec2){x, y};
+}
+
+// hit rectangle
+float hit_rectangle(Obj rec, Ray ray, float min, float max)
+{
+    float t = dot(ray.dir, rec.normal);
+    if (fabsf(t) <= ZERO || t <= min || t >= max)
+        return -1.0;
+
+    // Vec3 
+    // prove inside triangle
+    // Vec3 P = t * ray.dir + ray.org;
+    // float a = (rec.B - rec.A).x;
+    // float b = (rec.C - rec.A).x;
+    // float c = (rec.B - rec.A).y;
+    // float d = (rec.C - rec.A).y;
+    // float e = (P - rec.A).x;
+    // float f = (P - rec.B).y;
+
+    // float det = a * d - b * c;
+    // if (det == 0)
+    //     return -1.0;
+    // float detx = e * d - b * f;
+    // float dety = a * f - c * e;
+    // float alpha = detx / det;
+    // float beta = dety / det;
+    // if (alpha < 0.0 || alpha > 1.0 || beta < 0.0 || beta > 1.0)
+    //     return -1.0;
+    return t;
+}
+
 float hit_hemisphere(Obj hemisphere, Ray ray, float min, float max)
 {
     // hemisphere.color = (Color){hemisphere.color.b * va, hemisphere.color.g * va, hemisphere.color.b * va};
@@ -587,9 +666,9 @@ Ray render_object(Obj obj, Ray ray, float closest)
 
     if (obj.type == sphere_)
         cp_norm = unit_vector(p - obj.center);
-    if (obj.type == hemisphere_)
+    else if (obj.type == hemisphere_)
         cp_norm = unit_vector(p - obj.center);
-    else if (obj.type == plan_ || obj.type == triangle_)
+    else if (obj.type == plan_ || obj.type == triangle_ || obj.type == rectangle_)
         cp_norm = obj.normal;
 
     bool same_dir = dot(cp_norm, ray.dir) >= 0;
@@ -652,6 +731,8 @@ Color ray_color(Win *win, Ray ray, int depth)
                 x = hit_plan(scene->objects[i], ray, ZERO, closest);
             else if (scene->objects[i].type == triangle_)
                 x = hit_triangle(scene->objects[i], ray, ZERO, closest);
+            else if (scene->objects[i].type == rectangle_)
+                x = hit_rectangle(scene->objects[i], ray, ZERO, closest);
             if (x > .0)
             {
                 hit_index = i;
@@ -685,12 +766,11 @@ extern int upaxis;
 // Scene
 float y_rotation = 0;
 float x_rotation = 0;
-float z_rotation = 0;
 void rotate(Win *win, Vec3 &u, int axes, float angle);
 void init(Win *win)
 {
     Scene *scene = &win->scene;
-    scene->view_angle = degrees_to_radians(60); // TODO: maybe it's useless
+    scene->view_angle = degrees_to_radians(20); // TODO: maybe it's useless
     /*
         translation: transl camera and cam_dir   (key board)
         rotation:    rotate cam_dir over camera, (listen_on_mouse)
@@ -713,7 +793,7 @@ void init(Win *win)
     rotate(win, scene->upv, 'x', y_rotation);
 #endif
 
-    scene->len = 1; // TODO: maybe it's useless
+    scene->len = FOCAL_LEN; // TODO: maybe it's useless
     float tang = tan(scene->view_angle / 2);
     float screen_height = 2 * tang * scene->len;
     float screen_width = screen_height * ((float)win->width / win->height);
@@ -793,7 +873,6 @@ void rotate(Win *win, Vec3 &u, int axes, float angle)
     }
 }
 
-int flipe = -1;
 int on_mouse_move(Win *win, int x, int y)
 {
     Scene *scene = &win->scene;
@@ -807,22 +886,32 @@ int on_mouse_move(Win *win, int x, int y)
         //     std::cout << "turn left: " << x_rotation << std::endl;
 
         // if (dy > 0)
-        //     std::cout << "turn up: " << x_rotation << std::endl;
+        //     std::cout << "turn up: " <<Z x_rotation << std::endl;
         // if (dy < 0)
         //     std::cout << "turn down: " << x_rotation << std::endl;
         if (win->scene.cam_dir.z > win->scene.camera.z)
         {
-            x_rotation -= 0.1f * atan(dx / win->scene.len);
-            y_rotation += (0.1f) * atan(dy / win->scene.len);
+#if 0
+            x_rotation -= atan((win->scene.screen_u.x * (float)dx / win->width) / FOCAL_LEN);
+            y_rotation += atan((fabsf(win->scene.screen_v.y) * (float)dy / win->height) / FOCAL_LEN);
+#else
+            x_rotation -= atan((float)dx / win->width);
+            y_rotation += atan((float)dy / win->height);
+#endif
         }
         else
         {
-            x_rotation -= 0.1f * atan(dx / win->scene.len);
-            y_rotation -= (0.1f) * atan(dy / win->scene.len);
+#if 0
+            x_rotation -= atan((win->scene.screen_u.x * (float)dx / win->width) / FOCAL_LEN);
+            y_rotation -= atan((fabsf(win->scene.screen_v.y) * (float)dy / win->height) / FOCAL_LEN);
+#else
+            x_rotation -= atan((float)dx / win->width);
+            y_rotation -= atan((float)dy / win->height);
+#endif
         }
-        old_x = x;
-        old_y = y;
     }
+    old_x = x;
+    old_y = y;
     return 0;
 }
 
@@ -863,8 +952,6 @@ void *TraceRay(void *arg)
     Win *win = multi->win;
     Scene *scene = &win->scene;
     int x_start, y_start, width, height;
-    // struct timespec time_start, time_end;
-    // unsigned int frame_time;
     divideWindow(win, multi->idx, x_start, y_start, width, height);
     while (1)
     {
@@ -877,7 +964,7 @@ void *TraceRay(void *arg)
         {
             for (int w = x_start; w < x_start + width; w++)
             {
-                Vec3 pixel_center = scene->first_pixel + (w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
+                Vec3 pixel_center = scene->first_pixel + ((float)w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
                 Vec3 dir = pixel_center - scene->camera;
                 Ray ray = (Ray){.org = scene->camera, .dir = dir};
                 Color pixel = ray_color(win, ray, 5);
@@ -905,11 +992,11 @@ void add_objects(Win *win)
         Mat mat;
     } plans[] = {
         {(Vec3){}, 0, (Mat)0},
-        {(Vec3){0, -1, 0}, -4, Abs_}, // up
-        {(Vec3){0, 1, 0}, -4, Abs_},  // down
-        {(Vec3){0, 0, 1}, -12, Abs_}, // behind
-        {(Vec3){1, 0, 0}, -4, Abs_},  // right
-        {(Vec3){-1, 0, 0}, -4, Abs_}, // left
+        {(Vec3){0, -1, 0}, 4, Abs_},  // up
+        {(Vec3){0, 1, 0}, 4, Abs_},   // down
+        {(Vec3){0, 0, -1}, 40, Abs_}, // behind
+        {(Vec3){-1, 0, 0}, 4, Abs_},  // right
+        {(Vec3){1, 0, 0}, 4, Abs_},   // left
     };
     struct
     {
@@ -917,15 +1004,43 @@ void add_objects(Win *win)
         float rad;
         Mat mat;
     } spheres[] = {
-        {(Vec3){0, 1, -2}, .5, Abs_},
+        {(Vec3){0, 1, -5}, .5, Abs_},
         {(Vec3){-1, 0, -1}, .5, Abs_},
         {(Vec3){1, 0, -1}, .5, Abs_},
         {(Vec3){0, -.5, -2}, .5, Abs_},
         {(Vec3){0, -5, -.5}, .5, Abs_},
         {(Vec3){}, 0, (Mat)0},
     };
+#if 0
+    Vec3 p1, p2, p3;
+    p1 = (Vec3){0, 0, 0};
+    p2 = (Vec3){-1, 0, 0};
+    p3 = (Vec3){0, -1, 0};
+    win->scene.objects[win->scene.pos++] = new_triangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+#else
+    // Vec3 p1, p2, p3;
+    // p1 = (Vec3){0, 0, 0};
+    // p2 = (Vec3){0, 10, 0};
+    // p3 = (Vec3){10, 0, 0};
+    // win->scene.objects[win->scene.pos++] = new_rectangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+#endif
     Color colors[] = COLORS;
     int i = 0;
+    while (plans[i].mat)
+    {
+        Vec3 normal = plans[i].normal;
+        float dist = plans[i].dist;
+        Mat mat = plans[i].mat;
+        win->scene.objects[win->scene.pos] = new_plan(normal, dist, colors[win->scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
+        // if (i == 0)
+        // {
+        //     win->scene.objects[win->scene.pos].light_intensity = 2;
+        //     win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
+        // }
+        i++;
+        win->scene.pos++;
+    }
+    i = 0;
     while (spheres[i].mat)
     {
         Vec3 org = spheres[i].org;
@@ -935,19 +1050,6 @@ void add_objects(Win *win)
         i++;
         win->scene.pos++;
     }
-    i = 0;
-    while (plans[i].mat)
-    {
-        Vec3 normal = plans[i].normal;
-        float dist = plans[i].dist;
-        Mat mat = plans[i].mat;
-        win->scene.objects[win->scene.pos] = new_plan(normal, dist, colors[win->scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
-        if (i == 0)
-        {
-            win->scene.objects[win->scene.pos].light_intensity = 2;
-            win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
-        }
-        i++;
-        win->scene.pos++;
-    }
+    // win->scene.objects[0].light_intensity = 2;
+    // win->scene.objects[0].light_color = (Color){1, 1, 1};
 }

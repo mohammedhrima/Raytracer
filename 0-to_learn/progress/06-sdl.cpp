@@ -51,7 +51,7 @@
 #define ZERO .0001f
 
 #ifndef FOCAL_LEN
-#define FOCAL_LEN 2
+#define FOCAL_LEN 10
 #endif
 
 #define THREADS 1
@@ -690,7 +690,7 @@ void rotate(Win *win, Vec3 &u, int axes, float angle);
 void init(Win *win)
 {
     Scene *scene = &win->scene;
-    scene->view_angle = degrees_to_radians(60); // TODO: maybe it's useless
+    scene->view_angle = degrees_to_radians(20); // TODO: maybe it's useless
     /*
         translation: transl camera and cam_dir   (key board)
         rotation:    rotate cam_dir over camera, (listen_on_mouse)
@@ -713,7 +713,7 @@ void init(Win *win)
     rotate(win, scene->upv, 'x', y_rotation);
 #endif
 
-    scene->len = 1; // TODO: maybe it's useless
+    scene->len = FOCAL_LEN; // TODO: maybe it's useless
     float tang = tan(scene->view_angle / 2);
     float screen_height = 2 * tang * scene->len;
     float screen_width = screen_height * ((float)win->width / win->height);
@@ -793,7 +793,6 @@ void rotate(Win *win, Vec3 &u, int axes, float angle)
     }
 }
 
-int flipe = -1;
 int on_mouse_move(Win *win, int x, int y)
 {
     Scene *scene = &win->scene;
@@ -812,17 +811,17 @@ int on_mouse_move(Win *win, int x, int y)
         //     std::cout << "turn down: " << x_rotation << std::endl;
         if (win->scene.cam_dir.z > win->scene.camera.z)
         {
-            x_rotation -= 0.1f * atan(dx / win->scene.len);
-            y_rotation += (0.1f) * atan(dy / win->scene.len);
+            x_rotation -= atan((win->scene.screen_u.x * (float)dx / win->width) / FOCAL_LEN);
+            y_rotation += atan((fabsf(win->scene.screen_v.y) * (float)dy / win->height) / FOCAL_LEN);
         }
         else
         {
-            x_rotation -= 0.1f * atan(dx / win->scene.len);
-            y_rotation -= (0.1f) * atan(dy / win->scene.len);
+            x_rotation -= atan((win->scene.screen_u.x * (float)dx / win->width) / FOCAL_LEN);
+            y_rotation -= atan((fabsf(win->scene.screen_v.y) * (float)dy / win->height) / FOCAL_LEN);
         }
-        old_x = x;
-        old_y = y;
     }
+    old_x = x;
+    old_y = y;
     return 0;
 }
 
@@ -863,8 +862,6 @@ void *TraceRay(void *arg)
     Win *win = multi->win;
     Scene *scene = &win->scene;
     int x_start, y_start, width, height;
-    // struct timespec time_start, time_end;
-    // unsigned int frame_time;
     divideWindow(win, multi->idx, x_start, y_start, width, height);
     while (1)
     {
@@ -877,7 +874,7 @@ void *TraceRay(void *arg)
         {
             for (int w = x_start; w < x_start + width; w++)
             {
-                Vec3 pixel_center = scene->first_pixel + (w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
+                Vec3 pixel_center = scene->first_pixel + ((float)w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
                 Vec3 dir = pixel_center - scene->camera;
                 Ray ray = (Ray){.org = scene->camera, .dir = dir};
                 Color pixel = ray_color(win, ray, 5);
@@ -917,7 +914,7 @@ void add_objects(Win *win)
         float rad;
         Mat mat;
     } spheres[] = {
-        {(Vec3){0, 1, -2}, .5, Abs_},
+        {(Vec3){0, 1, -5}, .5, Abs_},
         {(Vec3){-1, 0, -1}, .5, Abs_},
         {(Vec3){1, 0, -1}, .5, Abs_},
         {(Vec3){0, -.5, -2}, .5, Abs_},
@@ -955,7 +952,7 @@ _Atomic(int) frame_index;
 
 int main()
 {
-    int width = 512;
+    int width = 800;
     int height = width / 1;
     if (height < 1)
         height = 1;
@@ -987,12 +984,12 @@ int main()
         Vec3 move;
         char *msg;
     } trans[1000] = {
-        [FORWARD - 1073741900] = {(Vec3){0, 0, -.5}, (char *)"forward"},
-        [BACKWARD - 1073741900] = {(Vec3){0, 0, .5}, (char *)"backward"},
-        [UP - 1073741900] = {(Vec3){0, .5, 0}, (char *)"up"},
-        [DOWN - 1073741900] = {(Vec3){0, -.5, 0}, (char *)"down"},
-        [LEFT - 1073741900] = {(Vec3){-.5, 0, 0}, (char *)"left"},
-        [RIGHT - 1073741900] = {(Vec3){.5, 0, 0}, (char *)"right"},
+        [FORWARD - 1073741900] = {(Vec3){0, 0, -1}, (char *)"forward"},
+        [BACKWARD - 1073741900] = {(Vec3){0, 0, 1}, (char *)"backward"},
+        [UP - 1073741900] = {(Vec3){0, 1, 0}, (char *)"up"},
+        [DOWN - 1073741900] = {(Vec3){0, -1, 0}, (char *)"down"},
+        [LEFT - 1073741900] = {(Vec3){-1, 0, 0}, (char *)"left"},
+        [RIGHT - 1073741900] = {(Vec3){1, 0, 0}, (char *)"right"},
     };
 
     while (!quit)
@@ -1024,9 +1021,9 @@ int main()
                 break;
             case MOUSE_SCROLL:
                 if (win->ev.wheel.y > 0)
-                    translate(win, trans[FORWARD - 1073741900].move);
+                    translate(win, 2 * trans[FORWARD - 1073741900].move);
                 else
-                    translate(win, trans[BACKWARD - 1073741900].move);
+                    translate(win, 2 * trans[BACKWARD - 1073741900].move);
                 // scene->upv = (Vec3){0, 1, 0};
                 frame_index = 1;
                 memset(sum, 0, win->width * win->height * sizeof(Color));

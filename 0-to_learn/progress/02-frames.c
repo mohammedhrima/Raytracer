@@ -501,12 +501,12 @@ int main(void)
         float dist; // distance from camera
         Mat mat;
     } plans[] = {
+        {(Vec3){}, 0, 0},
         {(Vec3){0, -1, 0}, -4, Abs_}, // up
         {(Vec3){0, 1, 0}, -4, Abs_},  // down
         {(Vec3){0, 0, 1}, -12, Abs_}, // behind
         {(Vec3){1, 0, 0}, -4, Abs_},  // right
         {(Vec3){-1, 0, 0}, -4, Abs_}, // left
-        {(Vec3){}, 0, 0},
     };
     struct
     {
