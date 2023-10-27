@@ -74,8 +74,9 @@ else
   exit 1
 fi
 
+flags="-fsanitize=address -g3"
 # Compile and run the code
-cmd="$comp $file -O3 $dependencies"
+cmd="$comp $flags $file -O3 $dependencies"
 echo "$cmd"
 $cmd
 ./a.out

@@ -30,7 +30,7 @@
 #define THREADS 1
 
 #if ANIMATION
-#define FRAMES_LEN 360
+#define FRAMES_LEN 0
 #else
 #define FRAMES_LEN 0
 #endif
@@ -110,7 +110,7 @@ typedef Vec3 Color;
     (Color) {}
 #else
 #define BACKGROUND(a) \
-    (Color) { (1.0 - a) + a * .3, (1.0 - a) + a * .7, (1.0 - a) + a * 1.0 }
+    (Color) { (1.0 - a) + a * .5, (1.0 - a) + a * .7, 1.0 }
 #endif
 
 typedef struct
@@ -474,6 +474,7 @@ Win *new_window(int width, int height, char *title)
     win->width = width;
     win->height = height;
     win->pixels = (uint32_t *)calloc(width * height, sizeof(uint32_t));
+    win->scene.camera = (Vec3){0, 0, 0};
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
         std::cerr << "Error opening window" << std::endl;
@@ -783,6 +784,7 @@ float x_rotation = 0;
 Vec3 rotate(Win *win, Vec3 u, int axes, float angle);
 void init(Win *win)
 {
+#if 0
     Scene *scene = &win->scene;
     scene->view_angle = degrees_to_radians(20); // TODO: maybe it's useless
 
@@ -792,10 +794,8 @@ void init(Win *win)
     scene->w = -1 * unit_vector(scene->cam_dir); // step in z axis and z
     scene->upv = (Vec3){0, 1, 0};
 
-#if 1 // TODO: to be checked after, you remove it after
     scene->upv = rotate(win, scene->upv, 'y', x_rotation);
     scene->upv = rotate(win, scene->upv, 'x', y_rotation);
-#endif
 
     scene->len = FOCAL_LEN; // TODO: maybe it's useless
     float tang = tan(scene->view_angle / 2);
@@ -815,6 +815,25 @@ void init(Win *win)
     Vec3 screen_center = scene->camera + (-scene->len * scene->w);
     Vec3 upper_left = screen_center - (scene->screen_u + scene->screen_v) / 2;
     scene->first_pixel = upper_left + (scene->pixel_u + scene->pixel_v) / 2;
+#else
+    Scene *scene = &win->scene;
+
+    // scene
+    scene->cam_dir = (Vec3){0, 0, -FOCAL_LEN};
+    scene->cam_dir = rotate(win, scene->cam_dir, 'y', x_rotation);
+    scene->cam_dir = rotate(win, scene->cam_dir, 'x', y_rotation);
+
+    scene->w = unit_vector((Vec3){0, 0, 0} - scene->cam_dir);
+    Vec3 upv = rotate(win, (Vec3){0, 1, 0}, 'y', x_rotation);
+    upv = rotate(win, upv, 'x', y_rotation);
+    float screen_height = 2.0 * tan(degrees_to_radians(40 / 2)) * FOCAL_LEN;
+    float screen_width = screen_height * ((float)win->width / win->height);
+    scene->u = unit_vector(cross_(upv, scene->w));
+    scene->v = unit_vector(cross_(scene->w, scene->u));
+    scene->pixel_u = (screen_width / win->width) * scene->u;
+    scene->pixel_v = -(screen_height / win->height) * scene->v;
+    scene->first_pixel = scene->camera - (FOCAL_LEN * scene->w) - (screen_width * scene->u - screen_height * scene->v) / 2 + (scene->pixel_u + scene->pixel_v) / 2;
+#endif
     // frame_index = 0;
 }
 

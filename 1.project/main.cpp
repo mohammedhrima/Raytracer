@@ -14,7 +14,7 @@ int main()
     Scene *scene = &win->scene;
     scene->objects = (Obj *)calloc(100, sizeof(Obj));
 
-    scene->camera = (Vec3){0, -16, FOCAL_LEN};
+    scene->camera = (Vec3){0, 0, FOCAL_LEN};
     scene->upv = (Vec3){0, 1, 0};
 
     sum = (Color *)calloc(win->width * win->height, sizeof(Color));
