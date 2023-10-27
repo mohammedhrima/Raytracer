@@ -1,4 +1,4 @@
-#include "00-utils.c"
+#include "00.utils.c"
 
 // Ray tracing
 float hit_sphere(Obj sphere, Ray ray, float min, float max)
@@ -55,7 +55,6 @@ float hit_triangle(Obj trian, Ray ray, float min, float max)
         return -1;
 
     return t;
-
 }
 
 float v = 0;
@@ -309,7 +308,7 @@ int listen_on_key(int code, Win *win)
 int on_mouse_move(int x, int y, Win *win)
 {
     Scene *scene = &win->scene;
-    if (is_mouse_down)
+    if (is_mouse_down) // x >= 0 && x <= win->width && y >= 0 && y <= win->height)
     {
         int dx = x - old_x;
         int dy = y - old_y;
@@ -322,7 +321,7 @@ int on_mouse_move(int x, int y, Win *win)
     }
     old_x = x;
     old_y = y;
-    printf("mouse move (%d, %d)\n", x, y);
+    // printf("mouse move (%d, %d)\n", x, y);
     return 0;
 }
 
@@ -361,44 +360,83 @@ int on_mouse_down(int code, int x, int y, Win *win)
     return 0;
 }
 
+bool recording = true;
+unsigned int *FramesList[FRAMES_LEN];
+int frame_shots;
+
 int draw(void *ptr)
 {
-    struct timespec time_start, time_end;
-    clock_gettime(CLOCK_MONOTONIC, &time_start);
-    frame++;
     Win *win = (Win *)ptr;
     Scene *scene = &win->scene;
+    struct timespec time_start, time_end;
+    float frame_time;
+    clock_gettime(CLOCK_MONOTONIC, &time_start);
+    if (recording)
+    {
+        FramesList[frame_shots] = calloc(win->width * win->height, sizeof(int));
+        frame_shots++;
+    }
+    frame++;
     if (sum == NULL)
         sum = calloc(win->width * win->height, sizeof(Color));
-#pragma omp parallel for
-    for (int h = 0; h < win->height; h++)
+    if (recording && frame_shots < FRAMES_LEN)
     {
-        for (int w = 0; w < win->width; w++)
+#pragma omp parallel for
+        for (int h = 0; h < win->height; h++)
         {
-            Vec3 pixel_center = add_vec3(add_vec3(scene->first_pixel, mul_vec3(w + random_float(0, 1), scene->pixel_u)), mul_vec3(h + random_float(0, 1), scene->pixel_v));
-            Vec3 dir = sub_vec3(pixel_center, scene->camera);
-            Ray ray = (Ray){.org = scene->camera, .dir = dir};
-            Color pixel = ray_color(win, ray, 5);
-            sum[h * win->width + w] = add_vec3(sum[h * win->width + w], pixel);
-            pixel = div_vec3(sum[h * win->width + w], (float)frame);
-            if (pixel.r > 1)
-                pixel.r = 1;
-            if (pixel.g > 1)
-                pixel.g = 1;
-            if (pixel.b > 1)
-                pixel.b = 1;
-            char *dst = win->addr + (h * win->line_length + w * (win->bits_per_pixel / 8));
-            *(unsigned int *)dst = ((int)(255.999 * sqrtf(pixel.r)) << 16) | ((int)(255.999 * sqrtf(pixel.g)) << 8) | ((int)(255.999 * sqrtf(pixel.b)));
+            for (int w = 0; w < win->width; w++)
+            {
+                Vec3 pixel_center = add_vec3(add_vec3(scene->first_pixel, mul_vec3(w + random_float(0, 1), scene->pixel_u)), mul_vec3(h + random_float(0, 1), scene->pixel_v));
+                Vec3 dir = sub_vec3(pixel_center, scene->camera);
+                Ray ray = (Ray){.org = scene->camera, .dir = dir};
+                Color pixel = ray_color(win, ray, 5);
+                sum[h * win->width + w] = add_vec3(sum[h * win->width + w], pixel);
+                pixel = div_vec3(sum[h * win->width + w], (float)frame);
+                if (pixel.r > 1)
+                    pixel.r = 1;
+                if (pixel.g > 1)
+                    pixel.g = 1;
+                if (pixel.b > 1)
+                    pixel.b = 1;
+                FramesList[frame_shots - 1][h * win->width + w] = ((int)(255.999 * sqrtf(pixel.r)) << 16) | ((int)(255.999 * sqrtf(pixel.g)) << 8) | ((int)(255.999 * sqrtf(pixel.b)));
+
+                char *dst = win->addr + (h * win->line_length + w * (win->bits_per_pixel / 8));
+                *(unsigned int *)dst = ((int)(255.999 * sqrtf(pixel.r)) << 16) | ((int)(255.999 * sqrtf(pixel.g)) << 8) | ((int)(255.999 * sqrtf(pixel.b)));
+            }
         }
+        clock_gettime(CLOCK_MONOTONIC, &time_end);
+        frame_time = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0;
+        if (frame_shots % 10 == 0)
+            printf("%6.2f: save frame %d\n", frame_time, frame_shots);
+    }
+    else if (recording)
+    {
+        recording = false;
+        frame_shots = 0;
+    }
+    else
+    {
+        // get images from FramesList to win->addr
+        for (int h = 0; h < win->height; h++)
+        {
+            for (int w = 0; w < win->width; w++)
+            {
+                char *dst = win->addr + (h * win->line_length + w * (win->bits_per_pixel / 8));
+                *(unsigned int *)dst = FramesList[frame_shots][h * win->width + w];
+            }
+        }
+        frame_shots++;
+        if (frame_shots > FRAMES_LEN - 2)
+            frame_shots = 0;
+
+        clock_gettime(CLOCK_MONOTONIC, &time_end);
+        frame_time = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0;
+        if (frame_shots % 10 == 0)
+            printf("%6.2f: render frame %d\n", frame_time, frame_shots);
     }
     mlx_put_image_to_window(win->mlx, win->win, win->img, 0, 0);
-    clock_gettime(CLOCK_MONOTONIC, &time_end);
-    float frame_time = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + (time_end.tv_nsec - time_start.tv_nsec) / 1000000.0;
-    if (frame % 100 == 0)
-        printf("%6.2f: render frame %d\n", frame_time, frame);
     return 0;
 }
-
 
 void init(Win *win)
 {
@@ -435,7 +473,6 @@ void init(Win *win)
     scene->first_pixel = add_vec3(upper_left, div_vec3(add_vec3(scene->pixel_u, scene->pixel_v), 2));   // upper_left + (pixel_u + pixel_v) / 2
 }
 
-
 int main(void)
 {
     Win win = {0};
@@ -464,12 +501,12 @@ int main(void)
         float dist; // distance from camera
         Mat mat;
     } plans[] = {
+        {(Vec3){0, -1, 0}, -4, Abs_}, // up
+        {(Vec3){0, 1, 0}, -4, Abs_},  // down
+        {(Vec3){0, 0, 1}, -12, Abs_}, // behind
+        {(Vec3){1, 0, 0}, -4, Abs_},  // right
+        {(Vec3){-1, 0, 0}, -4, Abs_}, // left
         {(Vec3){}, 0, 0},
-        {(Vec3){0, -1, 0}, 4, Abs_},  // up
-        {(Vec3){0, 1, 0}, 4, Abs_},   // down
-        {(Vec3){0, 0, 1}, 12, Refr_}, // behind
-        {(Vec3){1, 0, 0}, 4, Abs_},   // right
-        {(Vec3){-1, 0, 0}, 4, Abs_},  // left
     };
     struct
     {
@@ -477,12 +514,12 @@ int main(void)
         float rad;
         Mat mat;
     } spheres[] = {
-        {(Vec3){0, 0, -1}, .5, Abs_},  // center
-        {(Vec3){-1, 0, -1}, .5, Abs_}, // left
-        {(Vec3){1, 0, -1}, .5, Abs_},  // right
-        {(Vec3){}, 0, 0},
-        {(Vec3){5, 0, 8}, 2, Abs_},  // right
-        {(Vec3){0, -5, 8}, 2, Abs_}, // down
+        {(Vec3){0, 1, -2}, .5, Refl_},
+        {(Vec3){-1, 0, -1}, .5, Refl_},
+        {(Vec3){1, 0, -1}, .5, Refl_},
+        {(Vec3){0, -.5, -2}, .5, Refl_},
+        {(Vec3){0, -5, -.5}, .5, Refl_},
+        {(Vec3){}, 0, (Mat)0},
     };
     Color colors[] = COLORS;
     int i = 0;
@@ -492,7 +529,7 @@ int main(void)
         float rad = spheres[i].rad;
         Mat mat = spheres[i].mat;
         win.scene.objects[win.scene.pos] = new_sphere(org, rad, colors[win.scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
- 
+
         i++;
         win.scene.pos++;
     }
@@ -503,11 +540,15 @@ int main(void)
         float dist = plans[i].dist;
         Mat mat = plans[i].mat;
         win.scene.objects[win.scene.pos] = new_plan(normal, dist, colors[win.scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
+        if (i == 0)
+        {
+            win.scene.objects[win.scene.pos].light_intensity = 1;
+            win.scene.objects[win.scene.pos].light_color = (Color){1, 1, 1};
+        }
         i++;
         win.scene.pos++;
     }
-    // win.scene.objects[0].light_intensity = 1;
-    // win.scene.objects[0].light_color = (Color){1, 1, 1};
+   
     // win.scene.objects[win.scene.pos++] = new_sphere((Vec3){0, 0, 1}, 1, (Color){1, 0, 0}, Abs_);
 #endif
 

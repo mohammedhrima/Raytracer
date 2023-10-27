@@ -20,25 +20,12 @@ if [ ! -e "$threads" ]; then
   brew install libomp
 fi
 
-if [ ! -e "$brew/opt/glfw/lib/libglfw.3.3.dylib" ]; then
-  echo "glfw3 not found"
-  brew install glfw3
-fi
-
-if [ ! -e "$brew/opt/glew/lib/libGLEW.dylib" ]; then
-  echo "glew not found"
-  brew install glew
-fi
-
 if [ ! -e "$brew/lib/libSDL2-2.0.0.dylib" ]; then
   echo "sdl2 not found"
   brew install sdl2
 fi
 
 threads="-Xpreprocessor -fopenmp $threads"
-
-#openeGL
-opengl="$brew/opt/glfw/lib/libglfw.3.3.dylib $brew/opt/glew/lib/libGLEW.dylib -framework OpenGL"
 sdl="$brew/lib/libSDL2-2.0.0.dylib"
 
 comp=""

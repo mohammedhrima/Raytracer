@@ -1,5 +1,5 @@
 #define FOCAL_LEN 5
-#include "../progress/00-utils.c"
+#include "../progress/00.utils.c"
 
 // Ray tracing
 float hit_sphere(Obj sphere, Ray ray, float min, float max)

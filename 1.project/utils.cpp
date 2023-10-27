@@ -1,86 +1,75 @@
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#endif
-
-#if defined(__cplusplus)
-// This code will be compiled when the file has a .cpp extension.
-#else
-// This code will be compiled when the file does not have a .c extension.
-#endif
-
-#define GLFW_INCLUDE_NONE
-#include "/Users/mhrima/goinfre/homebrew/opt/glfw/include/GLFW/glfw3.h"
-#include "/Users/mhrima/goinfre/homebrew/opt/glew/include/GL/glew.h"
+#include "/goinfre/mhrima/homebrew/opt/sdl2/include/SDL2/SDL.h"
 
 #include <iostream>
-#include <vector>
-#include <stdio.h>
-#include <math.h>
-#include <float.h>
-#include <limits.h>
-#include <stdbool.h>
+#include <iomanip>
 #include <unistd.h>
-#include <stdlib.h>
-#include <time.h>
-#include <string.h>
-
-#ifndef THREADS
-#define THREADS 1
-#endif
-
-#if THREADS
-#define THREADS_LEN 4
-#else
-#define THREADS_LEN 1
-#endif
-
-#define SPLIT_SCREEN_BETWEEN_THREADS 1
-
-#define ZERO .0001f
-// colors
-#define Green 0x008000
-#define Red 0xFF0000
-#define Blue 0x0000FF
-#define White 0xFFFFFF
 
 // key eventt
-#define RELEASE GLFW_RELEASE
-#define PRESS GLFW_PRESS
-#define REPEAT GLFW_REPEAT
+#define RELEASE SDL_KEYUP
+#define PRESS SDL_KEYDOWN
+#define QUIT SDL_QUIT
+#define MOUSE_MOTION SDL_MOUSEMOTION
+#define MOUSE_DOWN SDL_MOUSEBUTTONDOWN
+#define MOUSE_UP SDL_MOUSEBUTTONUP
+#define MOUSE_SCROLL SDL_MOUSEWHEEL
 
-// keyboard
-#define ESC 256
+// keys
+#define ESC 27
+#define SPACE 32
+#define RESET 114
+#define UP 1073741906
+#define DOWN 1073741905
+#define LEFT 1073741904
+#define RIGHT 1073741903
+#define FORWARD 1073741920
+#define BACKWARD 1073741914
+#define MOUSE_LEFT SDL_BUTTON_LEFT
 
-#define RESET 82
-#define UP 265
-#define DOWN 264
-#define LEFT 263
-#define RIGHT 262
-#define FORWARD 328
-#define BACKWARD 322
+#define ANIMATION 1
+#define THREADS 1
 
-#define ZERO .0001f
-#define RED 0xff0000
-
-#ifndef FOCAL_LEN
-#define FOCAL_LEN 2
+#if ANIMATION
+#define FRAMES_LEN 360
+#else
+#define FRAMES_LEN 0
 #endif
+
+// R  G  B
+// 24 16 8
+#define COLOR(r, g, b) r << 24 | g << 16 | b << 8
 
 #define COLORS                  \
     {                           \
-        {0.92, 0.19, 0.15},     \
-            {0.42, 0.92, 0.72}, \
-            {0.42, 0.87, 0.92}, \
-            {0.30, 0.92, 0.64}, \
+        {0.30, 0.92, 0.64},     \
             {0.39, 0.92, 0.63}, \
             {0.42, 0.92, 0.80}, \
             {0.47, 0.16, 0.92}, \
             {0.42, 0.58, 0.92}, \
+            {0.92, 0.19, 0.15}, \
+            {0.42, 0.92, 0.72}, \
+            {0.42, 0.87, 0.92}, \
             {0.92, 0.40, 0.30}, \
             {0.61, 0.75, 0.24}, \
             {0.83, 0.30, 0.92}, \
             {0.23, 0.92, 0.08}, \
     }
+// colors
+#define Green 0x008000
+#define Red 0xFF0000
+#define Blue 0x0000FF
+#define White 0xFFFFFF
+#define ZERO .0001f
+
+#ifndef FOCAL_LEN
+#define FOCAL_LEN 10
+#endif
+
+
+#if THREADS
+#define THREADS_LEN 9
+#else
+#define THREADS_LEN 1
+#endif
 
 typedef enum
 {
@@ -94,7 +83,8 @@ typedef enum
     sphere_ = 22,
     plan_,
     triangle_,
-    hemisphere_
+    hemisphere_,
+    rectangle_
 } Type;
 
 typedef union
@@ -115,6 +105,14 @@ typedef union
 
 typedef Vec3 Color;
 
+#if 0
+#define BACKGROUND(a) \
+    (Color) {}
+#else
+#define BACKGROUND(a) \
+    (Color) { (1.0 - a) + a * .3, (1.0 - a) + a * .7, (1.0 - a) + a * 1.0 }
+#endif
+
 typedef struct
 {
     Type type;
@@ -129,6 +127,7 @@ typedef struct
         {
             Vec3 center;
             float radius;
+            float speed;
             // hemi Sphere
             Vec3 heminormal;
         };
@@ -143,6 +142,13 @@ typedef struct
                     Vec3 p1;
                     Vec3 p2;
                     Vec3 p3;
+                };
+                // rectangle
+                struct
+                {
+                    Vec3 A;
+                    Vec3 B;
+                    Vec3 C;
                 };
                 // Plan
                 float d;
@@ -170,39 +176,26 @@ typedef struct
     Vec3 pixel_v;
     Vec3 first_pixel;
     Vec3 u, v, w;
+    Vec3 upv;
     Obj *objects;
     int pos;
 } Scene;
-
-// typedef struct
-// {
-//     int width;
-//     int height;
-//     void *mlx;
-//     void *win;
-//     // image
-//     void *img;
-//     void *title;
-
-//     char *addr;
-//     int bits_per_pixel;
-//     int line_length;
-//     int endian;
-//     Scene scene;
-// } Win;
 
 typedef struct
 {
     int width;
     int height;
-    GLFWwindow *window;
-    unsigned int *pixels;
+    uint32_t *pixels;
+    SDL_Window *window;
+    SDL_Renderer *renderer;
+    SDL_Texture *screen_texture;
+    SDL_Event ev;
     Scene scene;
     _Atomic int thread_finished[THREADS_LEN];
 } Win;
 
 // utils
-static _Atomic unsigned rng_state;
+static unsigned rng_state;
 static const double one_over_uint_max = 1.0 / UINT_MAX;
 const float pi = 3.1415926535897932385;
 unsigned rand_pcg()
@@ -322,6 +315,7 @@ time_t get_time()
     clock_gettime(CLOCK_MONOTONIC, &time_);
     return (time_.tv_sec * 1000 + time_.tv_nsec / 1000000);
 }
+
 Obj new_sphere(Vec3 center, float radius, Color color, Mat mat)
 {
     Obj newobj = {};
@@ -367,6 +361,21 @@ Obj new_triangle(Vec3 p1, Vec3 p2, Vec3 p3, Color color, Mat mat)
     return newobj;
 }
 
+Obj new_rectangle(Vec3 A, Vec3 B, Vec3 C, Color color, Mat mat)
+{
+    Obj newobj = {};
+    newobj.type = rectangle_;
+    newobj.A = A;
+    newobj.B = B;
+    newobj.C = C;
+
+    newobj.normal = cross_(unit_vector(B - A), unit_vector(C - A));
+    newobj.color = color;
+    newobj.mat = mat;
+
+    return newobj;
+}
+
 typedef struct
 {
     int v, vt, vn;
@@ -383,12 +392,12 @@ void parse_obj(Scene *scene, char *name)
 
     char line[128];
     Vec3 *vertices = NULL;
-    Vec3 *normals = NULL;
-    Vec3 *textures = NULL;
+    // Vec3 *normals = NULL;
+    // Vec3 *textures = NULL;
     Obj *triangles = scene->objects;
     int numVertices = 0;
-    int numNormals = 0;
-    int numTextures = 0;
+    // int numNormals = 0;
+    // int numTextures = 0;
     // scene->pos = 0;
 
     while (fgets(line, sizeof(line), file))
@@ -457,160 +466,72 @@ void parse_obj(Scene *scene, char *name)
     }
 }
 
-// opengl
-void error_callback(int error, const char *description)
-{
-    std::cerr << "Error: " << description << std::endl;
-}
-
-Win *globalwin;
-extern _Atomic(int) frame_index;
-extern  Color *sum;
-
-void translate( Vec3 move)
-{
-    Vec3 x = move.x * globalwin->scene.u;
-    Vec3 y = move.y * globalwin->scene.v;
-    Vec3 z = move.z * globalwin->scene.w;
-
-    globalwin->scene.camera = globalwin->scene.camera + x + y + z;
-    frame_index = 1;
-    // free(sum);
-    // sum = NULL;
-    memset(sum, 0, globalwin->width * globalwin->height * sizeof(Color));
-}
-
-void init(Win *win);
-void listen_on_key(GLFWwindow *window, int key, int scancode, int action, int mods)
-{
-    struct
-    {
-        Vec3 move;
-        char *msg;
-    } trans[1000] = {
-        [FORWARD] = {(Vec3){0, 0, -.5}, (char *)"forward"},
-        [BACKWARD] = {(Vec3){0, 0, .5}, (char *)"backward"},
-        [UP] = {(Vec3){0, .5, 0}, (char *)"up"},
-        [DOWN] = {(Vec3){0, -.5, 0}, (char *)"down"},
-        [LEFT] = {(Vec3){-.5, 0, 0}, (char *)"left"},
-        [RIGHT] = {(Vec3){.5, 0, 0}, (char *)"right"},
-    };
-    switch (action)
-    {
-    case PRESS:
-    {
-        switch (key)
-        {
-        case ESC:
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
-            break;
-        case FORWARD:
-        case BACKWARD:
-        case UP:
-        case DOWN:
-        case RIGHT:
-        case LEFT:
-            printf("%s\n", trans[key].msg);
-            translate( trans[key].move);
-            init(globalwin);
-            break;
-        default:
-            std::cerr << "key pressed: " << key << std::endl;
-            break;
-        }
-        break;
-    }
-    case RELEASE:
-    case REPEAT:
-        break;
-    default:
-        std::cerr << "Unknown action: (" << action << ")" << std::endl;
-        break;
-    }
-}
-
-void mouse_move(GLFWwindow *window, double xpos, double ypos)
-{
-}
-
+// SDL functions
 Win *new_window(int width, int height, char *title)
 {
-    if (!glfwInit())
-    {
-        std::cerr << "Error: initializing GLF" << std::endl;
-        exit(-1);
-    }
-    Win *win = (Win *)calloc(1, sizeof(Win));
-    globalwin = win;
+    Win *win;
+    win = (Win *)calloc(1, sizeof(Win));
     win->width = width;
     win->height = height;
-    glfwSetErrorCallback(error_callback);
-    win->pixels = (unsigned int *)calloc(win->width * win->height, sizeof(unsigned int));
-
-    // init window
-    win->window = glfwCreateWindow(win->width, win->height, title, NULL, NULL);
-    if (!win->window)
+    win->pixels = (uint32_t *)calloc(width * height, sizeof(uint32_t));
+    if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
-        glfwTerminate();
+        std::cerr << "Error opening window" << std::endl;
+        SDL_Quit();
         exit(-1);
     }
-    glfwSetWindowPos(win->window, 10, 700);
-    glfwMakeContextCurrent(win->window);
-    glfwSetKeyCallback(win->window, listen_on_key);
-
-    glfwSetCursorPosCallback(win->window, mouse_move);
-    glewInit();
+    win->window = SDL_CreateWindow(title, 0, 0, width, height, SDL_WINDOW_SHOWN);
+    if (win->window == NULL)
+    {
+        std::cerr << "Error opening window" << std::endl;
+        SDL_Quit();
+        exit(-1);
+    }
+    win->renderer = SDL_CreateRenderer(win->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_SetWindowMinimumSize(win->window, width, height);
+    SDL_RenderSetLogicalSize(win->renderer, width, height);
+    SDL_RenderSetIntegerScale(win->renderer, (SDL_bool)1);
+    win->screen_texture = SDL_CreateTexture(win->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, width, height);
     return win;
 }
-
+void init(Win *win);
+void clear_window(Win *win, Color *sum)
+{
+    // memset(sum, COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
+    init(win);
+}
 void update_window(Win *win)
 {
-    // unsigned int *pixels = win->pixels;
-
-    for (int i = 0; i < THREADS_LEN; i++)
-        win->thread_finished[i] = 0;
-    while (1)
-    {
-        int finished = 1;
-
-        for (int i = 0; i < THREADS_LEN; i++)
-        {
-            if (!win->thread_finished[i])
-                finished = 0;
-        }
-        if (finished)
-            break ;
-        usleep(10);
-    }
-
-    glPointSize(4.0f); // Adjust the point size as needed ????
-    glBegin(GL_POINTS);
-    for (int i = 0; i < win->width * win->height; i++)
-    {
-        unsigned char r = (win->pixels[i] >> 16) & 0xFF;
-        unsigned char g = (win->pixels[i] >> 8) & 0xFF;
-        unsigned char b = win->pixels[i] & 0xFF;
-        glColor3f(r / 255.0f, g / 255.0f, b / 255.0f);
-        float x = (i % win->width) / (float)win->width * 2 - 1;
-        float y = 1 - (i / win->width) / (float)win->height * 2;
-        glVertex2f(x, y);
-    }
-    glEnd();
-    glfwSwapBuffers(win->window);
-    glfwPollEvents();
+    // Update the texture with the modified pixel data
+    SDL_UpdateTexture(win->screen_texture, NULL, win->pixels, win->width * 4);
+    // Copy the texture to the renderer
+    SDL_RenderCopy(win->renderer, win->screen_texture, NULL, NULL);
+    // Present the renderer
+    SDL_RenderPresent(win->renderer);
 }
-
-void draw_rect(Win *win, int x_start, int y_start, int rec_width, int rec_height, int color)
+void close_window(Win *win)
 {
-    for (int j = y_start; j < y_start + rec_height; j++)
+    free(win->pixels);
+    SDL_DestroyTexture(win->screen_texture);
+    SDL_DestroyRenderer(win->renderer);
+    SDL_DestroyWindow(win->window);
+    SDL_Quit();
+}
+void draw_rect(Win *win, int x_start, int y_start, int width, int height, int color)
+{
+    for (int y = y_start; y < y_start + height; y++)
     {
-        for (int i = x_start; i < x_start + rec_width; i++)
+        for (int x = x_start; x < x_start + width; x++)
         {
-            win->pixels[j * win->width + i] = color;
+            // Calculate the index in the pixel buffer
+            int index = y * win->width + x;
+            // Set the pixel color to red (RGBA: 255, 0, 0, 255)
+            win->pixels[index] = color;
         }
     }
 }
 
+// Raytracing
 // hit functions
 float hit_sphere(Obj sphere, Ray ray, float min, float max)
 {
@@ -669,6 +590,61 @@ float hit_triangle(Obj trian, Ray ray, float min, float max)
     return t;
 }
 
+typedef struct
+{
+    float x;
+    float y;
+} Vec2;
+
+Vec2 solve_2d_system_equation(Vec2 u, Vec2 d, Vec2 s)
+{
+    // det
+    float dt = u.x * d.y - u.y * d.x;
+    if (dt == 0)
+        return (Vec2){-1, -1};
+
+    // x
+    float dx = s.x * d.y - u.y * s.y;
+    float x = dx / dt;
+    if (x > 1 || x < 0)
+        return (Vec2){-1, -1};
+    // y
+    float dy = u.x * s.y - d.x * s.x;
+    float y = dy / dt;
+    if (y > 1 || y < 0)
+        return (Vec2){-1, -1};
+    return (Vec2){x, y};
+}
+
+// hit rectangle
+float hit_rectangle(Obj rec, Ray ray, float min, float max)
+{
+    float t = dot(ray.dir, rec.normal);
+    if (fabsf(t) <= ZERO || t <= min || t >= max)
+        return -1.0;
+
+    // Vec3
+    // prove inside triangle
+    // Vec3 P = t * ray.dir + ray.org;
+    // float a = (rec.B - rec.A).x;
+    // float b = (rec.C - rec.A).x;
+    // float c = (rec.B - rec.A).y;
+    // float d = (rec.C - rec.A).y;
+    // float e = (P - rec.A).x;
+    // float f = (P - rec.B).y;
+
+    // float det = a * d - b * c;
+    // if (det == 0)
+    //     return -1.0;
+    // float detx = e * d - b * f;
+    // float dety = a * f - c * e;
+    // float alpha = detx / det;
+    // float beta = dety / det;
+    // if (alpha < 0.0 || alpha > 1.0 || beta < 0.0 || beta > 1.0)
+    //     return -1.0;
+    return t;
+}
+
 float hit_hemisphere(Obj hemisphere, Ray ray, float min, float max)
 {
     // hemisphere.color = (Color){hemisphere.color.b * va, hemisphere.color.g * va, hemisphere.color.b * va};
@@ -708,9 +684,9 @@ Ray render_object(Obj obj, Ray ray, float closest)
 
     if (obj.type == sphere_)
         cp_norm = unit_vector(p - obj.center);
-    if (obj.type == hemisphere_)
+    else if (obj.type == hemisphere_)
         cp_norm = unit_vector(p - obj.center);
-    else if (obj.type == plan_ || obj.type == triangle_)
+    else if (obj.type == plan_ || obj.type == triangle_ || obj.type == rectangle_)
         cp_norm = obj.normal;
 
     bool same_dir = dot(cp_norm, ray.dir) >= 0;
@@ -773,6 +749,8 @@ Color ray_color(Win *win, Ray ray, int depth)
                 x = hit_plan(scene->objects[i], ray, ZERO, closest);
             else if (scene->objects[i].type == triangle_)
                 x = hit_triangle(scene->objects[i], ray, ZERO, closest);
+            else if (scene->objects[i].type == rectangle_)
+                x = hit_rectangle(scene->objects[i], ray, ZERO, closest);
             if (x > .0)
             {
                 hit_index = i;
@@ -788,11 +766,7 @@ Color ray_color(Win *win, Ray ray, int depth)
         }
         else
         {
-            float a = 0.5 * (unit_vector(ray.dir).y + 1.0);
-            float r = (1.0 - a) + a * .3;
-            float g = (1.0 - a) + a * .7;
-            float b = (1.0 - a) + a * 1.0;
-            light = light + (attenuation * (Color){r, g, b});
+            light = light + attenuation * BACKGROUND(0.5 * (unit_vector(ray.dir).y + 1.0));
             break;
         }
         if (attenuation.x <= ZERO && attenuation.y <= ZERO && attenuation.z <= ZERO)
@@ -801,7 +775,67 @@ Color ray_color(Win *win, Ray ray, int depth)
     return light;
 }
 
-Vec3 rotate(float angle, Vec3 u, int axes)
+extern int upaxis;
+
+// Scene
+float y_rotation = 0;
+float x_rotation = 0;
+Vec3 rotate(Win *win, Vec3 u, int axes, float angle);
+void init(Win *win)
+{
+    Scene *scene = &win->scene;
+    scene->view_angle = degrees_to_radians(20); // TODO: maybe it's useless
+
+    scene->cam_dir = (Vec3){0, 0.65, -1};
+    scene->cam_dir = rotate(win, scene->cam_dir, 'y', x_rotation);
+    scene->cam_dir = rotate(win, scene->cam_dir, 'x', y_rotation);
+    scene->w = -1 * unit_vector(scene->cam_dir); // step in z axis and z
+    scene->upv = (Vec3){0, 1, 0};
+
+#if 1 // TODO: to be checked after, you remove it after
+    scene->upv = rotate(win, scene->upv, 'y', x_rotation);
+    scene->upv = rotate(win, scene->upv, 'x', y_rotation);
+#endif
+
+    scene->len = FOCAL_LEN; // TODO: maybe it's useless
+    float tang = tan(scene->view_angle / 2);
+    float screen_height = 2 * tang * scene->len;
+    float screen_width = screen_height * ((float)win->width / win->height);
+
+    scene->u = unit_vector(cross_(scene->upv, scene->w)); // x+ (get v vector)
+    scene->v = unit_vector(cross_(scene->w, scene->u));   // y+ (get u vector)
+
+    // viewport steps
+    scene->screen_u = screen_width * scene->u;
+    scene->screen_v = -screen_height * scene->v;
+    // window steps
+    scene->pixel_u = scene->screen_u / win->width;
+    scene->pixel_v = scene->screen_v / win->height;
+
+    Vec3 screen_center = scene->camera + (-scene->len * scene->w);
+    Vec3 upper_left = screen_center - (scene->screen_u + scene->screen_v) / 2;
+    scene->first_pixel = upper_left + (scene->pixel_u + scene->pixel_v) / 2;
+    // frame_index = 0;
+}
+
+extern Color *sum;
+// int frame;
+int old_x;
+int old_y;
+int old_z;
+
+extern int is_mouse_down;
+
+void translate(Win *win, Vec3 move)
+{
+    Vec3 x = move.x * win->scene.u;
+    Vec3 y = move.y * win->scene.v;
+    Vec3 z = move.z * win->scene.w;
+
+    win->scene.camera = win->scene.camera + x + y + z;
+}
+static int angle1;
+Vec3 rotate(Win *win, Vec3 u, int axes, float angle)
 {
     float cos_ = cos(angle);
     float sin_ = sin(angle);
@@ -831,189 +865,30 @@ Vec3 rotate(float angle, Vec3 u, int axes)
     }
     default:
     {
-        printf("Error in rotation\n");
+        std::cerr << "Error in rotation" << std::endl;
         exit(0);
     }
     }
     return (Vec3){};
 }
-float y_rotation = 0;
-float x_rotation = 0;
 
-void init(Win *win)
+int on_mouse_move(Win *win, int x, int y)
 {
     Scene *scene = &win->scene;
-    scene->view_angle = degrees_to_radians(60); // TODO: maybe it's useless
-    /*
-        translation: transl camera and cam_dir   (key board)
-        rotation:    rotate cam_dir over camera, (listen_on_mouse)
-    */
-    scene->cam_dir = rotate(degrees_to_radians(x_rotation), (Vec3){0, 0, -1}, 'y');
-    scene->cam_dir = rotate(degrees_to_radians(y_rotation), scene->cam_dir, 'x');
-    scene->w = -1 * unit_vector(scene->cam_dir); // step in z axis and z
-
-    Vec3 upv = (Vec3){0, 1, 0}; // used for getting u,v
-    upv = rotate(degrees_to_radians(x_rotation), upv, 'y');
-    upv = rotate(degrees_to_radians(y_rotation), upv, 'x');
-
-    scene->len = 1; // TODO: maybe it's useless
-    float tang = tan(scene->view_angle / 2);
-    float screen_height = 2 * tang * scene->len;
-    float screen_width = screen_height * ((float)win->width / win->height);
-
-    scene->u = unit_vector(cross_(upv, scene->w));      // x+ (get v vector)
-    scene->v = unit_vector(cross_(scene->w, scene->u)); // y+ (get u vector)
-
-    // viewport steps
-    scene->screen_u = screen_width * scene->u;
-    scene->screen_v = -screen_height * scene->v;
-    // window steps
-    scene->pixel_u = scene->screen_u / win->width;
-    scene->pixel_v = scene->screen_v / win->height;
-
-    Vec3 screen_center = scene->camera + (-scene->len * scene->w);
-    Vec3 upper_left = screen_center - (scene->screen_u + scene->screen_v) / 2;
-    scene->first_pixel = upper_left + (scene->pixel_u + scene->pixel_v) / 2;
-
-
-    
-}
-
-void add_objects(Win *win)
-{
-    struct
+    if (is_mouse_down)
     {
-        Vec3 normal;
-        float dist; // distance from camera
-        Mat mat;
-    } plans[] = {
-        {(Vec3){0, -1, 0}, -4, Abs_}, // up
-        {(Vec3){0, 1, 0}, -4, Abs_},  // down
-        {(Vec3){0, 0, 1}, -12, Abs_}, // behind
-        {(Vec3){1, 0, 0}, -4, Abs_},  // right
-        {(Vec3){-1, 0, 0}, -4, Abs_}, // left
-        {(Vec3){}, 0, (Mat)0},
-    };
-    struct
-    {
-        Vec3 org;
-        float rad;
-        Mat mat;
-    } spheres[] = {
-        {(Vec3){0, 1, -2}, .5, Refl_},
-        {(Vec3){-1, 0, -1}, .5, Refl_},
-        {(Vec3){1, 0, -1}, .5, Refl_},
-        {(Vec3){0, -.5, -2}, .5, Refl_},
-        {(Vec3){0, -5, -.5}, .5, Refl_},
-        {(Vec3){}, 0, (Mat)0},
-    };
-    Color colors[] = COLORS;
-    int i = 0;
-    while (spheres[i].mat)
-    {
-        Vec3 org = spheres[i].org;
-        float rad = spheres[i].rad;
-        Mat mat = spheres[i].mat;
-        win->scene.objects[win->scene.pos] = new_sphere(org, rad, colors[win->scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
-        // if (i == 0)
-        // {
-        //     win->scene.objects[win->scene.pos].light_intensity = 40;
-        //     win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
-        // }
-        i++;
-        win->scene.pos++;
+        int dx = x - old_x;
+        int dy = y - old_y;
+        float tanx = atan((float)dx / win->width);
+        float tany = atan((float)dy / win->height);
+        if (win->scene.cam_dir.z > win->scene.camera.z)
+            tany = -tany;
+        x_rotation -= tanx;
+        y_rotation -= tany;
     }
-    i = 0;
-    while (plans[i].mat)
-    {
-        Vec3 normal = plans[i].normal;
-        float dist = plans[i].dist;
-        Mat mat = plans[i].mat;
-        win->scene.objects[win->scene.pos] = new_plan(normal, dist, colors[win->scene.pos % (sizeof(colors) / sizeof(*colors))], mat);
-        if (i == 0)
-        {
-            win->scene.objects[win->scene.pos].light_intensity = 2;
-            win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
-        }
-        i++;
-        win->scene.pos++;
-    }
-}
-
-pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
-void print_time(time_t frame_time, int frame_index)
-{
-#if THREADS
-    static int i;
-    if (i == 0)
-    {
-#endif
-        pthread_mutex_lock(&mtx);
-        printf("%6ld: render frame %d\n", frame_time, frame_index);
-        pthread_mutex_unlock(&mtx);
-#if THREADS
-    }
-    i = (i + 1) % 4;
-#endif
-}
-
-void divideWindow(Win *win, int threadNum, int &x_start, int &y_start, int &w, int &h)
-{
-    int cols = ceil(sqrt(THREADS_LEN));
-    int rows = ceil((float)THREADS_LEN / cols);
-
-    int col = threadNum % cols;
-    int row = threadNum / cols;
-    int cellWidth = win->width / cols ;
-    int cellHeight = win->height / rows;
-    x_start = col * cellWidth;
-    y_start = row * cellHeight;
-    w = cellWidth - 1;
-    h = cellHeight - 1;
-}
-
-
-_Atomic(int) frame_index;
- Color *sum;
-int curr_x;
-int curr_y;
-int old_x;
-int old_y;
-
-int is_mouse_down = 0;
-//     0   to width/2   &&    0     to height/2
-// width/2 to width     &&    0     to height/2
-//     0   to width/2   && height/2 to height
-// width/2 to width     && height/2 to height
-
-void draw(Win *win, int x_start, int y_start, int width, int height)
-{
-    Scene *scene = &win->scene;
-
-    frame_index++;
-#if !THREADS
-#pragma omp parallel for
-#endif
-    for (int h = x_start; h < x_start + width; h++)
-    {
-        for (int w = y_start; w < y_start + height; w++)
-        {
-            Vec3 pixel_center = scene->first_pixel + (w + random_float(0, 1)) * scene->pixel_u + (h + random_float(0, 1)) * scene->pixel_v;
-            Vec3 dir = pixel_center - scene->camera;
-            Ray ray = (Ray){.org = scene->camera, .dir = dir};
-            Color pixel = ray_color(win, ray, 5);
-            sum[h * win->width + w] = sum[h * win->width + w] + pixel;
-            pixel = sum[h * win->width + w] / (float)frame_index;
-            if (pixel.r > 1)
-                pixel.r = 1;
-            if (pixel.g > 1)
-                pixel.g = 1;
-            if (pixel.b > 1)
-                pixel.b = 1;
-            // if (w >= x_start && w < x_start + width && h >= y_start && h < y_start + height)
-            win->pixels[h * win->width + w] = ((int)(255.999 * sqrtf(pixel.r)) << 16) | ((int)(255.999 * sqrtf(pixel.g)) << 8) | ((int)(255.999 * sqrtf(pixel.b)));
-        }
-    }
+    old_x = x;
+    old_y = y;
+    return 0;
 }
 
 typedef struct
@@ -1022,42 +897,6 @@ typedef struct
     Win *win;
     int idx;
 } Multi;
-
-void *threadFunction(void *arg)
-{
-    Multi *multi = (Multi *)arg;
-    Win *win = multi->win;
-    time_t time_start;
-    time_t time_end;
-
-#if THREADS
-    while (1)
-    {
-        if (win->thread_finished[multi->idx])
-        {
-            usleep(1000);
-            continue;
-        }
-#if SPLIT_SCREEN_BETWEEN_THREADS
-        int x_start, y_start, width, height;
-        divideWindow(win, multi->idx, x_start, y_start, width, height);
-        draw(win, x_start, y_start, width, height);
-#else
-        int height;
-        height = win->height / THREADS_LEN;
-        draw(win, 0, multi->idx * height, win->width, height);
-#endif
-        win->thread_finished[multi->idx] = 1;
-        time_end = get_time();
-        // print_time(time_end - time_start, frame_index);
-
-    }
-#else
-    draw(win, 0, 0, win->width, win->height);
-#endif
-    return nullptr;
-}
-
 Multi *new_multi(int idx, Win *win)
 {
     Multi *multi = (Multi *)calloc(1, sizeof(Multi));
@@ -1065,56 +904,72 @@ Multi *new_multi(int idx, Win *win)
     multi->win = win;
     return multi;
 }
-
-int main(void)
+void divideWindow(Win *win, int threadNum, int &x_start, int &y_start, int &w, int &h)
 {
-    int width = 512;
-    int height = width / 1;
-    if (height < 1)
-        height = 1;
-    Win *win = new_window(width, height, (char *)"Mini Raytracer");
-    win->scene.objects = (Obj *)calloc(100, sizeof(Obj));
-    win->scene.camera = (Vec3){0, 0, FOCAL_LEN};
-    win->scene.cam_dir = (Vec3){0, 0, -1};
-
-    for (int i = 0; i < THREADS_LEN; i++)
-        win->thread_finished[i] = 1;
-    sum = (Color *)calloc(win->width * win->height, sizeof(Color));
-
-    init(win);
-    add_objects(win);
-
-    Multi *multis[THREADS_LEN + 1];
-    for (int i = 0; i < THREADS_LEN; i++)
-    {
-        multis[i] = new_multi(i, win);
-#if THREADS
-        pthread_create(&multis[i]->thread, nullptr, threadFunction, multis[i]);
-#endif
-    }
-
-    while (!glfwWindowShouldClose(win->window))
-    {
-#if THREADS
-        update_window(win);
-         usleep(1000000);
-#else
-        time_t time_start, time_end;
-        float frame_time;
-        time_start = get_time();
-        threadFunction(multis[0]);
-        time_end = get_time();
-        print_time(time_end - time_start, frame_index);
-        update_window(win);
-#endif
-    }
-
-#if THREADS
-    for (int i = 0; i < THREADS_LEN; i++)
-        pthread_join(multis[i]->thread, nullptr);
-#endif
-
-    glfwTerminate();
-    return 0;
+    int cols = ceil(sqrt(THREADS_LEN));
+    int rows = ceil((float)THREADS_LEN / cols);
+    int col = threadNum % cols;
+    int row = threadNum / cols;
+    int cellWidth = win->width / cols;
+    int cellHeight = win->height / rows;
+    x_start = col * cellWidth;
+    y_start = row * cellHeight;
+    w = cellWidth - 1;
+    h = cellHeight - 1;
 }
 
+Color *sum;
+extern _Atomic(int) frame_index;
+int is_mouse_down = 0;
+extern int frame_shots;
+
+void *TraceRay(void *arg)
+{
+    Multi *multi = (Multi *)arg;
+    Win *win = multi->win;
+    Scene *scene = &win->scene;
+    int x_start, y_start, width, height;
+    divideWindow(win, multi->idx, x_start, y_start, width, height);
+    while (1)
+    {
+        if (FRAMES_LEN && (int)frame_shots == FRAMES_LEN)
+            break;
+        if (win->thread_finished[multi->idx])
+        {
+            usleep(1000);
+            continue;
+        }
+        for (int h = y_start; h < y_start + height; h++)
+        {
+            for (int w = x_start; w < x_start + width; w++)
+            {
+                int rays_per_pixel = 9;
+                Color pixel = (Color){0, 0, 0};
+#if FRAMES_LEN
+                for (int i = 0; i < rays_per_pixel; i++)
+                {
+#endif
+                    Vec3 pixel_center = scene->first_pixel + ((float)w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
+                    Vec3 dir = pixel_center - scene->camera;
+                    Ray ray = (Ray){.org = scene->camera, .dir = dir};
+                    pixel = pixel + ray_color(win, ray, 5);
+#if FRAMES_LEN
+                }
+                pixel = pixel / rays_per_pixel;
+#endif
+                sum[h * win->width + w] = sum[h * win->width + w] + pixel;
+                pixel = sum[h * win->width + w] / (float)frame_index;
+                if (pixel.r > 1)
+                    pixel.r = 1;
+                if (pixel.g > 1)
+                    pixel.g = 1;
+                if (pixel.b > 1)
+                    pixel.b = 1;
+                win->pixels[h * win->width + w] = COLOR((int)(255.999 * sqrtf(pixel.r)), (int)(255.999 * sqrtf(pixel.g)), (int)(255.999 * sqrtf(pixel.b)));
+            }
+        }
+        win->thread_finished[multi->idx] = 1;
+    }
+    std::cout << "thread " << multi->idx << "finished" << std::endl;
+    return NULL;
+}
