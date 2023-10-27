@@ -1,9 +1,4 @@
-24 Oct:
-
 + cube3D b3aqlo
-
-+ mini soloar system:
-    + I may need to use relative coordinates
 
 + fix the rectangle !!!
 + detect closest objects

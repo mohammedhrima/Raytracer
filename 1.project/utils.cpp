@@ -1,4 +1,5 @@
 #include "/goinfre/mhrima/homebrew/opt/sdl2/include/SDL2/SDL.h"
+// #include "/goinfre/mhrima/homebrew/opt/sdl2/SDL2/SDL.h"
 
 #include <iostream>
 #include <iomanip>
@@ -63,7 +64,6 @@
 #ifndef FOCAL_LEN
 #define FOCAL_LEN 10
 #endif
-
 
 #if THREADS
 #define THREADS_LEN 9
