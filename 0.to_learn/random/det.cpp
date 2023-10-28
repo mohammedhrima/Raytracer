@@ -36,6 +36,29 @@ Vec2 solve_2d_system_equation(Vec2 u, Vec2 d, Vec2 s)
     return (Vec2){x, y};
 }
 
+/*
+Vec2 solve_2d_system_equation(Vec2 u, Vec2 d, Vec2 s)
+{
+    // det
+    float dt = u.x * d.y - u.y * d.x;
+    if (dt == 0)
+        return (Vec2){-1, -1};
+
+    // x
+    float dx = s.x * d.y - u.y * s.y;
+    float x = dx / dt;
+    if (x > 1 || x < 0)
+        return (Vec2){-1, -1};
+    // y
+    float dy = u.x * s.y - d.x * s.x;
+    float y = dy / dt;
+    if (y > 1 || y < 0)
+        return (Vec2){-1, -1};
+    return (Vec2){x, y};
+}
+
+*/
+
 int main(void)
 {
     Vec2 u = (Vec2){5, 2};
