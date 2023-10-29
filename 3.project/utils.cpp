@@ -132,7 +132,7 @@ typedef struct
 {
     Vec3 dir;
     Vec3 org;
-} Ray;
+} t_ray;
 
 typedef struct
 {
@@ -259,7 +259,7 @@ Vec3 random_unit_vector()
     Vec3 v = unit_vector(u);
     return v;
 }
-Vec3 point_at(Ray ray, float t)
+Vec3 point_at(t_ray ray, float t)
 {
     return (Vec3){ray.org.x + t * ray.dir.x, ray.org.y + t * ray.dir.y, ray.org.z + t * ray.dir.z};
 }
@@ -382,7 +382,7 @@ void close_window(Win *win)
 
 // Raytracing
 // hit functions
-float hit_sphere(Obj sphere, Ray ray, float min, float max)
+float hit_sphere(Obj sphere, t_ray ray, float min, float max)
 {
     Vec3 OC = ray.org - sphere.center;
 
@@ -401,7 +401,7 @@ float hit_sphere(Obj sphere, Ray ray, float min, float max)
     return (sol);
 }
 
-float hit_cylinder(Obj cylin, Ray ray, float min, float max)
+float hit_cylinder(Obj cylin, t_ray ray, float min, float max)
 {
     float t = hit_sphere(cylin, ray, min, max);
     if (t != -1.0 && unit_dot(unit_vector(point_at(ray, t)), cylin.normal) == 0)
@@ -409,7 +409,7 @@ float hit_cylinder(Obj cylin, Ray ray, float min, float max)
     return -1.0;
 }
 
-float hit_plan(Obj plan, Ray ray, float min, float max)
+float hit_plan(Obj plan, t_ray ray, float min, float max)
 {
     float t = plan.d - unit_dot(plan.normal, ray.org);
     float div = unit_dot(ray.dir, plan.normal);
@@ -421,7 +421,7 @@ float hit_plan(Obj plan, Ray ray, float min, float max)
     return (t);
 }
 
-float hit_triangle(Obj trian, Ray ray, float min, float max)
+float hit_triangle(Obj trian, t_ray ray, float min, float max)
 {
     float t = unit_dot(trian.normal, (trian.p1 - ray.org));
     float div = unit_dot(trian.normal, ray.dir);
@@ -454,7 +454,7 @@ float hit_triangle(Obj trian, Ray ray, float min, float max)
     return t;
 }
 
-float hit_rectangle(Obj rec, Ray ray, float min, float max)
+float hit_rectangle(Obj rec, t_ray ray, float min, float max)
 {
     float t = unit_dot(rec.normal, (rec.p1 - ray.org));
     float div = unit_dot(rec.normal, ray.dir);
@@ -479,7 +479,7 @@ float hit_rectangle(Obj rec, Ray ray, float min, float max)
     return t;
 }
 // rendering
-Ray render_object(Obj obj, Ray ray, float closest)
+t_ray render_object(Obj obj, t_ray ray, float closest)
 {
     // point coordinates
     Vec3 cp_norm;
@@ -538,11 +538,11 @@ Ray render_object(Obj obj, Ray ray, float closest)
     }
     else if (obj.mat == Abs_)
         ndir = cp_norm + ranv;
-    return (Ray){.org = p, .dir = ndir};
+    return (t_ray){.org = p, .dir = ndir};
 }
 
 #if 1
-Color ray_color(Win *win, Ray ray, int depth)
+Color ray_color(Win *win, t_ray ray, int depth)
 {
     Scene *scene = &win->scene;
     Color light = {};
@@ -589,7 +589,7 @@ Color ray_color(Win *win, Ray ray, int depth)
     return light;
 }
 #else
-Color ray_color_recursive(Scene *scene, Ray ray, int depth, Color light, Color attenuation)
+Color ray_color_recursive(Scene *scene, t_ray ray, int depth, Color light, Color attenuation)
 {
     // TODO: must be understood
     if (depth == 0)
@@ -629,7 +629,7 @@ Color ray_color_recursive(Scene *scene, Ray ray, int depth, Color light, Color a
         light = light + attenuation * BACKGROUND(0.5 * (unit_vector(ray.dir).y + 1.0));
     return ray_color_recursive(scene, ray, depth - 1, light, attenuation);
 }
-Color ray_color(Win *win, Ray ray, int depth)
+Color ray_color(Win *win, t_ray ray, int depth)
 {
     Scene *scene = &win->scene;
     Color light = {};
@@ -828,7 +828,7 @@ void *Multi_TraceRay(void *arg)
 #endif
                     Vec3 pixel_center = scene->first_pixel + ((float)w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
                     Vec3 dir = pixel_center - scene->camera;
-                    Ray ray = (Ray){.org = scene->camera, .dir = dir};
+                    t_ray ray = (t_ray){.org = scene->camera, .dir = dir};
                     pixel = pixel + ray_color(win, ray, 5);
 #if FRAMES_LEN
                 }
@@ -866,7 +866,7 @@ void TraceRay(Win *win)
             {
                 Vec3 pixel_center = scene->first_pixel + ((float)w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
                 Vec3 dir = pixel_center - scene->camera;
-                Ray ray = (Ray){.org = scene->camera, .dir = dir};
+                t_ray ray = (t_ray){.org = scene->camera, .dir = dir};
                 pixel = pixel + ray_color(win, ray, 25);
             }
             pixel = pixel / rays_per_pixel;
