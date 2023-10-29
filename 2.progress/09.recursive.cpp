@@ -1,5 +1,6 @@
 #include "../0.headers/SDL.h"
 #include <iostream>
+#include <iomanip>
 #include <unistd.h>
 
 // key eventt
@@ -23,16 +24,16 @@
 #define BACKWARD 1073741914
 #define MOUSE_LEFT SDL_BUTTON_LEFT
 
+/*
+threads 1 frames 1 +
+threads 1 frames 0 +
+threads 0 frames 0 +
+threads 0 frames 1 (should not work)
+*/
+
 // can't do mutiple frames with no threads
 #define THREADS_LEN 4
 #define FRAMES_LEN 0
-
-#define ZERO .0001f
-#define PI 3.1415926535897932385
-
-#ifndef FOCAL_LEN
-#define FOCAL_LEN 10
-#endif
 
 // R  G  B
 // 24 16 8
@@ -41,7 +42,7 @@
 #define COLORS                  \
     (Color[])                   \
     {                           \
-            {0.30, 0.92, 0.64}, \
+        {0.30, 0.92, 0.64},     \
             {0.39, 0.92, 0.63}, \
             {0.42, 0.92, 0.80}, \
             {0.47, 0.16, 0.92}, \
@@ -55,6 +56,17 @@
             {0.23, 0.92, 0.08}, \
     }
 
+// colors
+#define Green 0x008000
+#define Red 0xFF0000
+#define Blue 0x0000FF
+#define White 0xFFFFFF
+#define ZERO .0001f
+
+#ifndef FOCAL_LEN
+#define FOCAL_LEN 10
+#endif
+
 typedef enum
 {
     Refl_ = 11,
@@ -67,6 +79,7 @@ typedef enum
     sphere_ = 22,
     plan_,
     triangle_,
+    hemisphere_,
     rectangle_,
     cylinder_,
 } Type;
@@ -89,8 +102,13 @@ typedef union
 
 typedef Vec3 Color;
 
+#if 0
+#define BACKGROUND(a) \
+    (Color) {}
+#else
 #define BACKGROUND(a) \
     (Color) { (1.0 - a) + a * .5, (1.0 - a) + a * .7, 1.0 }
+#endif
 
 typedef struct
 {
@@ -136,12 +154,18 @@ typedef struct
 
 typedef struct
 {
+    // rendering
+    float len;
+    float view_angle;
     Vec3 camera;
     Vec3 cam_dir;
+    Vec3 screen_u;
+    Vec3 screen_v;
     Vec3 pixel_u;
     Vec3 pixel_v;
     Vec3 first_pixel;
     Vec3 u, v, w;
+    // Vec3 upv;
     Obj *objects;
     int pos;
 } Scene;
@@ -159,10 +183,13 @@ typedef struct
 #if THREADS_LEN
     _Atomic int thread_finished[THREADS_LEN];
 #endif
+
 } Win;
 
+// utils
 static unsigned rng_state;
 static const double one_over_uint_max = 1.0 / UINT_MAX;
+const float pi = 3.1415926535897932385;
 unsigned rand_pcg()
 {
     unsigned state = rng_state;
@@ -176,12 +203,15 @@ float random_float(float min, float max)
 }
 float degrees_to_radians(float degrees)
 {
-    return degrees * PI / 180.0;
+    return degrees * pi / 180.0;
 }
+
 Color color(float r, float g, float b)
 {
     return (Color){r / 255.999, g / 255.999, b / 255.999};
 }
+
+// vectors calculations
 // thank you cpp
 Vec3 operator+(Vec3 l, Vec3 r)
 {
@@ -221,6 +251,7 @@ Vec3 operator/(Vec3 l, Vec3 r)
     }
     return (Vec3){l.x / r.x, l.y / r.y, l.z / r.z};
 }
+
 float length_squared(Vec3 v)
 {
     return pow(v.x, 2) + pow(v.y, 2) + pow(v.z, 2);
@@ -229,11 +260,11 @@ float length(Vec3 v)
 {
     return sqrt(length_squared(v));
 }
-float unit_dot(Vec3 u, Vec3 v)
+float dot(Vec3 u, Vec3 v)
 {
-    return (u.x * v.x + u.y * v.y + u.z * v.z);
+    return u.x * v.x + u.y * v.y + u.z * v.z;
 }
-Vec3 cross(Vec3 u, Vec3 v)
+Vec3 cross_(Vec3 u, Vec3 v)
 {
     return (Vec3){u.y * v.z - u.z * v.y,
                   u.z * v.x - u.x * v.z,
@@ -247,15 +278,22 @@ Vec3 unit_vector(Vec3 v)
         return (Vec3){};
     return v / f;
 }
-Vec3 random_unit_vector()
+Vec3 random_vector(float min, float max)
 {
-    Vec3 u;
+    return (Vec3){random_float(min, max), random_float(min, max), random_float(min, max)};
+}
+Vec3 random_in_unit_sphere()
+{
     while (1)
     {
-        u = (Vec3){random_float(-1, 1), random_float(-1, 1), random_float(-1, 1)};
-        if (length_squared(u) <= 1)
-            break;
+        Vec3 v = random_vector(-1, 1);
+        if (length_squared(v) <= 1)
+            return v;
     }
+}
+Vec3 random_unit_vector()
+{
+    Vec3 u = random_in_unit_sphere();
     Vec3 v = unit_vector(u);
     return v;
 }
@@ -269,6 +307,7 @@ time_t get_time()
     clock_gettime(CLOCK_MONOTONIC, &time_);
     return (time_.tv_sec * 1000 + time_.tv_nsec / 1000000);
 }
+
 Obj new_sphere(Vec3 center, float radius, Color color, Mat mat)
 {
     Obj obj = {};
@@ -279,7 +318,17 @@ Obj new_sphere(Vec3 center, float radius, Color color, Mat mat)
     obj.mat = mat;
     return obj;
 }
-
+Obj new_hemisphere(Vec3 center, float radius, Vec3 normal, Color color, Mat mat)
+{
+    Obj obj = {};
+    obj.type = hemisphere_;
+    obj.center = center;
+    obj.radius = radius;
+    obj.color = color;
+    obj.mat = mat;
+    obj.normal = normal; // add_vec3(normal, center);
+    return obj;
+}
 Obj new_plan(Vec3 normal, float d, Color color, Mat mat)
 {
     Obj obj = {};
@@ -298,7 +347,7 @@ Obj new_triangle(Vec3 p1, Vec3 p2, Vec3 p3, Color color, Mat mat)
     obj.p2 = p2;
     obj.p3 = p3;
 
-    obj.normal = cross(unit_vector(p2 - p1), unit_vector(p3 - p1));
+    obj.normal = cross_(unit_vector(p2 - p1), unit_vector(p3 - p1));
     obj.color = color;
     obj.mat = mat;
 
@@ -313,7 +362,7 @@ Obj new_rectangle(Vec3 p1, Vec3 p2, Vec3 p3, Color color, Mat mat)
     obj.p2 = p2;
     obj.p3 = p2;
 
-    obj.normal = cross(unit_vector(p2 - p1), unit_vector(p3 - p1));
+    obj.normal = cross_(unit_vector(p2 - p1), unit_vector(p3 - p1));
     obj.color = color;
     obj.mat = mat;
 
@@ -330,6 +379,96 @@ Obj new_cylinder(Vec3 center, float radius, Vec3 normal, Color color, Mat mat)
     obj.color = color;
     obj.mat = mat;
     return obj;
+}
+
+typedef struct
+{
+    int v, vt, vn;
+} FaceVertex;
+
+void parse_obj(Scene *scene, char *name)
+{
+    FILE *file = fopen(name, "r");
+    if (!file)
+    {
+        fprintf(stderr, "Error: Could not open the .obj file.\n");
+        exit(1);
+    }
+
+    char line[128];
+    Vec3 *vertices = NULL;
+    // Vec3 *normals = NULL;
+    // Vec3 *textures = NULL;
+    Obj *triangles = scene->objects;
+    int numVertices = 0;
+    // int numNormals = 0;
+    // int numTextures = 0;
+    // scene->pos = 0;
+
+    while (fgets(line, sizeof(line), file))
+    {
+        if (line[0] == 'v' && line[1] == ' ')
+        {
+            Vec3 vertex;
+            if (sscanf(line, "v %f %f %f", &vertex.x, &vertex.y, &vertex.z) == 3)
+            {
+
+                // vertex.x *= 2;
+                // vertex.y *= 2;
+                vertex.z *= 2;
+
+                vertices = (Vec3 *)realloc(vertices, (numVertices + 1) * sizeof(Vec3));
+                vertices[numVertices++] = vertex;
+            }
+        }
+        // else if (line[0] == 'v' && line[1] == 'n')
+        // {
+        //     Vec3 normal;
+        //     if (sscanf(line, "vn %f %f %f", &normal.x, &normal.y, &normal.z) == 3)
+        //     {
+        //         numNormals++;
+        //         normals = (Vec3 *)realloc(normals, numNormals * sizeof(Vec3));
+        //         normals[numNormals - 1] = normal;
+        //     }
+        // }
+        // else if (line[0] == 'v' && line[1] == 't')
+        // {
+        //     Vec3 texture;
+        //     if (sscanf(line, "vt %f %f %f", &texture.x, &texture.y, &texture.z) >= 2)
+        //     {
+        //         numTextures++;
+        //         textures = (Vec3 *)realloc(textures, numTextures * sizeof(Vec3));
+        //         textures[numTextures - 1] = texture;
+        //     }
+        // }
+        else if (line[0] == 'f' && line[1] == ' ')
+        {
+            FaceVertex face[3];
+            if (sscanf(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
+                       &face[0].v, &face[0].vt, &face[0].vn,
+                       &face[1].v, &face[1].vt, &face[1].vn,
+                       &face[2].v, &face[2].vt, &face[2].vn) == 9)
+            {
+                Vec3 p1 = vertices[face[0].v - 1];
+                Vec3 p2 = vertices[face[1].v - 1];
+                Vec3 p3 = vertices[face[2].v - 1];
+                triangles[scene->pos] = new_triangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+                scene->pos++;
+            }
+
+            // printf("obj triangle: \n");
+            // printf("\tp1(%f, %f, %f)\n", triangles[scene->pos - 1].p1.x, triangles[scene->pos - 1].p1.y, triangles[scene->pos - 1].p1.z);
+            // printf("\tp2(%f, %f, %f)\n", triangles[scene->pos - 1].p2.x, triangles[scene->pos - 1].p2.y, triangles[scene->pos - 1].p2.z);
+            // printf("\tp3(%f, %f, %f)\n", triangles[scene->pos - 1].p3.x, triangles[scene->pos - 1].p3.y, triangles[scene->pos - 1].p3.z);
+        }
+    }
+    fclose(file);
+
+    if (numVertices == 0 || scene->pos == 0)
+    {
+        fprintf(stderr, "Error: No vertices or triangles found in the .obj file.\n");
+        exit(1);
+    }
 }
 
 // SDL functions
@@ -379,6 +518,19 @@ void close_window(Win *win)
     SDL_DestroyWindow(win->window);
     SDL_Quit();
 }
+void draw_rect(Win *win, int x_start, int y_start, int width, int height, int color)
+{
+    for (int y = y_start; y < y_start + height; y++)
+    {
+        for (int x = x_start; x < x_start + width; x++)
+        {
+            // Calculate the index in the pixel buffer
+            int index = y * win->width + x;
+            // Set the pixel color to red (RGBA: 255, 0, 0, 255)
+            win->pixels[index] = color;
+        }
+    }
+}
 
 // Raytracing
 // hit functions
@@ -387,7 +539,7 @@ float hit_sphere(Obj sphere, Ray ray, float min, float max)
     Vec3 OC = ray.org - sphere.center;
 
     float a = length_squared(ray.dir);
-    float half_b = unit_dot(OC, ray.dir);
+    float half_b = dot(OC, ray.dir);
     float c = length_squared(OC) - sphere.radius * sphere.radius;
     float delta = half_b * half_b - a * c;
     if (delta < .0)
@@ -404,15 +556,15 @@ float hit_sphere(Obj sphere, Ray ray, float min, float max)
 float hit_cylinder(Obj cylin, Ray ray, float min, float max)
 {
     float t = hit_sphere(cylin, ray, min, max);
-    if (t != -1.0 && unit_dot(unit_vector(point_at(ray, t)), cylin.normal) == 0)
+    if (t != -1.0 && dot(unit_vector(point_at(ray, t)), cylin.normal) == 0)
         return t;
     return -1.0;
 }
 
 float hit_plan(Obj plan, Ray ray, float min, float max)
 {
-    float t = plan.d - unit_dot(plan.normal, ray.org);
-    float div = unit_dot(ray.dir, plan.normal);
+    float t = plan.d - dot(plan.normal, ray.org);
+    float div = dot(ray.dir, plan.normal);
     if (fabsf(div) <= ZERO)
         return -1.0;
     t /= div;
@@ -421,10 +573,11 @@ float hit_plan(Obj plan, Ray ray, float min, float max)
     return (t);
 }
 
+// TODO: check Barycentric Coordinates
 float hit_triangle(Obj trian, Ray ray, float min, float max)
 {
-    float t = unit_dot(trian.normal, (trian.p1 - ray.org));
-    float div = unit_dot(trian.normal, ray.dir);
+    float t = dot(trian.normal, (trian.p1 - ray.org));
+    float div = dot(trian.normal, ray.dir);
     if (fabsf(div) <= ZERO)
         return -1.0;
     t /= div;
@@ -454,10 +607,11 @@ float hit_triangle(Obj trian, Ray ray, float min, float max)
     return t;
 }
 
+
 float hit_rectangle(Obj rec, Ray ray, float min, float max)
 {
-    float t = unit_dot(rec.normal, (rec.p1 - ray.org));
-    float div = unit_dot(rec.normal, ray.dir);
+    float t = dot(rec.normal, (rec.p1 - ray.org));
+    float div = dot(rec.normal, ray.dir);
     if (fabsf(div) <= ZERO)
         return -1.0;
     t /= div;
@@ -478,6 +632,37 @@ float hit_rectangle(Obj rec, Ray ray, float min, float max)
 
     return t;
 }
+
+float hit_hemisphere(Obj hemisphere, Ray ray, float min, float max)
+{
+    // hemisphere.color = (Color){hemisphere.color.b * va, hemisphere.color.g * va, hemisphere.color.b * va};
+    Vec3 OC = ray.org - hemisphere.center;
+    float a = length_squared(ray.dir);
+    float half_b = dot(OC, ray.dir);
+    float c = length_squared(OC) - hemisphere.radius * hemisphere.radius;
+    float delta = half_b * half_b - a * c;
+    if (delta < .0)
+        return -1.0;
+    float sq_delta = sqrtf(delta);
+    float sol = (-half_b - sq_delta) / a;
+
+    Vec3 p = unit_vector(point_at(ray, sol) - hemisphere.center);
+    Vec3 axis1 = {-1, -1, 0};
+    Vec3 axis2 = {-1, 1, 0};
+
+    float d1 = dot(p, axis1);
+    float d2 = dot(p, axis2);
+    if (sol <= min || sol >= max || (d2 < 0 && d1 < 0))
+    {
+        sol = (-half_b + sq_delta) / a;
+        p = unit_vector(point_at(ray, sol) - hemisphere.center);
+        d1 = dot(p, axis1);
+        d2 = dot(p, axis2);
+        if (sol <= min || sol >= max || (d2 < 0 && d1 < 0))
+            sol = -1;
+    }
+    return sol;
+}
 // rendering
 Ray render_object(Obj obj, Ray ray, float closest)
 {
@@ -488,6 +673,7 @@ Ray render_object(Obj obj, Ray ray, float closest)
     switch (obj.type)
     {
     case sphere_:
+    case hemisphere_: // TODO: check this one, matbe hemisphere should have it's own normal
         cp_norm = unit_vector(p - obj.center);
         break;
     case plan_:
@@ -502,7 +688,7 @@ Ray render_object(Obj obj, Ray ray, float closest)
         break;
     }
 
-    bool same_dir = unit_dot(cp_norm, ray.dir) >= 0;
+    bool same_dir = dot(cp_norm, ray.dir) >= 0;
     if (same_dir) // to be used when drawing triangle
         cp_norm = (Vec3){-cp_norm.x, -cp_norm.y, -cp_norm.z};
     Vec3 ranv = random_unit_vector();
@@ -510,7 +696,7 @@ Ray render_object(Obj obj, Ray ray, float closest)
     if (obj.mat == Refl_)
     {
         float val;
-        val = -2 * unit_dot(ray.dir, cp_norm);
+        val = -2 * dot(ray.dir, cp_norm);
         ndir = (Vec3){ray.dir.x + val * cp_norm.x, ray.dir.y + val * cp_norm.y, ray.dir.z + val * cp_norm.z};
     }
     else if (obj.mat == Refr_)
@@ -518,20 +704,20 @@ Ray render_object(Obj obj, Ray ray, float closest)
         float index_of_refraction = 1.5;
         float refraction_ratio = same_dir ? index_of_refraction : (1.0 / index_of_refraction);
 
-        float cos_theta = unit_dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm));
+        float cos_theta = dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm));
         float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
         if (refraction_ratio * sin_theta > 1.0)
         {
             // Reflect
             float val;
-            val = -2 * unit_dot(ray.dir, cp_norm);
+            val = -2 * dot(ray.dir, cp_norm);
             ndir = (Vec3){ray.dir.x + val * cp_norm.x, ray.dir.y + val * cp_norm.y, ray.dir.z + val * cp_norm.z};
         }
         else
         {
             // Refract
             Vec3 ray_dir = unit_vector(ray.dir);
-            Vec3 Perp = refraction_ratio * (ray_dir - (unit_dot(ray_dir, cp_norm) * cp_norm));
+            Vec3 Perp = refraction_ratio * (ray_dir - (dot(ray_dir, cp_norm) * cp_norm));
             Vec3 Para = sqrt(1 - pow(length(Perp), 2)) * (-1 * cp_norm);
             ndir = Perp + Para;
         }
@@ -557,6 +743,8 @@ Color ray_color(Win *win, Ray ray, int depth)
         {
             if (scene->objects[i].type == sphere_)
                 x = hit_sphere(scene->objects[i], ray, ZERO, closest);
+            else if (scene->objects[i].type == hemisphere_)
+                x = hit_hemisphere(scene->objects[i], ray, ZERO, closest);
             else if (scene->objects[i].type == cylinder_)
                 x = hit_cylinder(scene->objects[i], ray, ZERO, closest);
             else if (scene->objects[i].type == plan_)
@@ -604,6 +792,8 @@ Color ray_color_recursive(Scene *scene, Ray ray, int depth, Color light, Color a
     {
         if (scene->objects[i].type == sphere_)
             x = hit_sphere(scene->objects[i], ray, ZERO, closest);
+        else if (scene->objects[i].type == hemisphere_)
+            x = hit_hemisphere(scene->objects[i], ray, ZERO, closest);
         else if (scene->objects[i].type == cylinder_)
             x = hit_cylinder(scene->objects[i], ray, ZERO, closest);
         else if (scene->objects[i].type == plan_)
@@ -637,7 +827,6 @@ Color ray_color(Win *win, Ray ray, int depth)
     return ray_color_recursive(scene, ray, depth, light, attenuation);
 }
 #endif
-
 // Scene
 float y_rotation = 0;
 float x_rotation = 0;
@@ -646,32 +835,34 @@ void init(Win *win)
 {
 #if 0
     Scene *scene = &win->scene;
+    scene->view_angle = degrees_to_radians(20); // TODO: maybe it's useless
 
     scene->cam_dir = (Vec3){0, 0.65, -1};
     scene->cam_dir = rotate(win, scene->cam_dir, 'y', x_rotation);
     scene->cam_dir = rotate(win, scene->cam_dir, 'x', y_rotation);
     scene->w = -1 * unit_vector(scene->cam_dir); // step in z axis and z
-    Vec3 upv = (Vec3){0, 1, 0};
+    scene->upv = (Vec3){0, 1, 0};
 
-     upv = rotate(win, upv, 'y', x_rotation);
-    upv = rotate(win,  upv, 'x', y_rotation);
+    scene->upv = rotate(win, scene->upv, 'y', x_rotation);
+    scene->upv = rotate(win, scene->upv, 'x', y_rotation);
 
-    float tang = tan(degrees_to_radians(20) / 2);
-    float screen_height = 2 * tang * FOCAL_LEN;
+    scene->len = FOCAL_LEN; // TODO: maybe it's useless
+    float tang = tan(scene->view_angle / 2);
+    float screen_height = 2 * tang * scene->len;
     float screen_width = screen_height * ((float)win->width / win->height);
 
-    scene->u = unit_vector(cross(upv, scene->w)); // x+ (get v vector)
-    scene->v = unit_vector(cross(scene->w, scene->u));   // y+ (get u vector)
+    scene->u = unit_vector(cross_(scene->upv, scene->w)); // x+ (get v vector)
+    scene->v = unit_vector(cross_(scene->w, scene->u));   // y+ (get u vector)
 
     // viewport steps
-    Vec3 screen_u = screen_width * scene->u;
-    Vec3 screen_v = -screen_height * scene->v;
+    scene->screen_u = screen_width * scene->u;
+    scene->screen_v = -screen_height * scene->v;
     // window steps
-    scene->pixel_u = screen_u / win->width;
-    scene->pixel_v = screen_v / win->height;
+    scene->pixel_u = scene->screen_u / win->width;
+    scene->pixel_v = scene->screen_v / win->height;
 
-    Vec3 screen_center = scene->camera + (-FOCAL_LEN* scene->w);
-    Vec3 upper_left = screen_center - (screen_u + screen_v) / 2;
+    Vec3 screen_center = scene->camera + (-scene->len * scene->w);
+    Vec3 upper_left = screen_center - (scene->screen_u + scene->screen_v) / 2;
     scene->first_pixel = upper_left + (scene->pixel_u + scene->pixel_v) / 2;
 #else
     Scene *scene = &win->scene;
@@ -686,13 +877,14 @@ void init(Win *win)
     upv = rotate(win, upv, 'x', y_rotation);
     float screen_height = 2.0 * tan(degrees_to_radians(40 / 2)) * FOCAL_LEN;
     float screen_width = screen_height * ((float)win->width / win->height);
-    scene->u = unit_vector(cross(upv, scene->w));
-    scene->v = unit_vector(cross(scene->w, scene->u));
+    scene->u = unit_vector(cross_(upv, scene->w));
+    scene->v = unit_vector(cross_(scene->w, scene->u));
     scene->pixel_u = (screen_width / win->width) * scene->u;
     scene->pixel_v = -(screen_height / win->height) * scene->v;
     scene->first_pixel = scene->camera - (FOCAL_LEN * scene->w) - (screen_width * scene->u - screen_height * scene->v) / 2 + (scene->pixel_u + scene->pixel_v) / 2;
 #endif
 }
+
 extern Color *sum;
 // int frame;
 int old_x;
@@ -973,4 +1165,175 @@ void listen_on_events(Win *win, int &quit)
             break;
         }
     }
+}
+void add_objects(Win *win);
+int main()
+{
+    int width = 800;
+    int height = width / 1;
+    if (height < 1)
+        height = 1;
+    time_t time_start, time_end;
+    Win *win = new_window(width, height, (char *)"Mini Raytracer");
+    Scene *scene = &win->scene;
+    scene->objects = (Obj *)calloc(100, sizeof(Obj));
+
+    scene->camera = (Vec3){0, 0, FOCAL_LEN};
+    // scene->upv = (Vec3){0, 1, 0};
+
+    sum = (Color *)calloc(win->width * win->height, sizeof(Color));
+    init(win);
+    frame_index = 1;
+    int quit = 0;
+    int frame_shot = 0;
+    add_objects(win);
+
+#if THREADS_LEN
+    for (int i = 0; i < THREADS_LEN; i++)
+        win->thread_finished[i] = 1;
+    Multi *multis[THREADS_LEN];
+    for (int i = 0; i < THREADS_LEN; i++)
+    {
+        multis[i] = new_multi(i, win);
+        pthread_create(&multis[i]->thread, nullptr, Multi_TraceRay, multis[i]);
+    }
+#if FRAMES_LEN
+    unsigned int *FramesList[FRAMES_LEN];
+#endif
+#else
+    // no threads
+    TraceRay(win);
+#endif
+
+    int i = 0;
+    while (!quit)
+    {
+        listen_on_events(win, quit); // to exit for example
+#if THREADS_LEN
+        // set all threads to not finished
+        for (int i = 0; i < THREADS_LEN; i++)
+            win->thread_finished[i] = 0;
+        time_start = get_time();
+#if FRAMES_LEN
+        while (THREADS_LEN && frame_shots < FRAMES_LEN)
+        {
+            int finished = 1;
+
+            for (int i = 0; i < THREADS_LEN; i++)
+            {
+                if (!win->thread_finished[i])
+                    finished = 0;
+            }
+            if (finished)
+                break;
+            usleep(1000);
+        }
+        // record animation
+        if (frame_shots < FRAMES_LEN)
+        {
+            std::cout << "Recording frame: " << frame_shots << std::endl;
+            FramesList[frame_shots] = (uint32_t *)calloc(win->width * win->height, sizeof(uint32_t));
+            memcpy(FramesList[frame_shots++], win->pixels, win->width * win->height * sizeof(uint32_t));
+            int i = 0;
+            while (win->scene.objects[i].type == sphere_ && win->scene.objects[i].speed >= 0)
+            {
+                win->scene.objects[i].center = rotate(win, win->scene.objects[i].center, 'z', win->scene.objects[i].speed * degrees_to_radians(1));
+                i++;
+            }
+            frame_index = 0;
+            memset(sum, COLOR(0, 0, 0), win->width * win->height * sizeof(Color));
+            while (1)
+            {
+                int finished = 1;
+
+                for (int i = 0; i < THREADS_LEN; i++)
+                {
+                    if (!win->thread_finished[i])
+                        finished = 0;
+                }
+                if (finished)
+                    break;
+                usleep(1000);
+            }
+            init(win); // to be checked
+        }
+        // play animation
+        else
+        {
+            frame_index = frame_index % FRAMES_LEN;
+            std::cout << "Playing frame: " << frame_index << std::endl;
+            memcpy(win->pixels, FramesList[frame_index], win->width * win->height * sizeof(uint32_t));
+            usleep(1000);
+        }
+#else
+        while (1)
+        {
+            int finished = 1;
+
+            for (int i = 0; i < THREADS_LEN; i++)
+            {
+                if (!win->thread_finished[i])
+                    finished = 0;
+            }
+            if (finished)
+                break;
+            usleep(1000);
+        }
+        init(win); // to be checked
+#endif
+        frame_index++;
+        time_end = get_time();
+        std::string dynamicTitle = std::to_string(time_end - time_start) + std::string(" ms");
+        SDL_SetWindowTitle(win->window, dynamicTitle.c_str());
+#endif
+        update_window(win);
+    }
+    close_window(win);
+}
+
+void add_objects(Win *win)
+{
+    struct
+    {
+        Vec3 center;
+        float rad;
+        float speed;
+        Color color;
+    } planets[] = {
+        {(Vec3){-1, -1, -3}, 1, 0, COLORS[0]},
+        {(Vec3){0, 1, -3}, 1, 0, COLORS[3]},
+        {(Vec3){1, -1, -3}, 1, 0, COLORS[5]},
+
+        {(Vec3){}, 0, -1, (Color){}},
+        {(Vec3){.5, 0, -15}, .2, 1.6, color(26., 26., 26.)},    // mercury
+        {(Vec3){1, 0, -15}, .2, 1.4, color(230., 230., 230.)},  // venus
+        {(Vec3){1.5, 0, -15}, .2, 1.2, color(47., 106., 105.)}, // earth
+        {(Vec3){2, 0, -15}, .2, 1., color(153., 61., 0.)},      // mars
+        {(Vec3){2.5, 0, -15}, .2, .8, color(176., 127., 53.)},  // jupiter
+        {(Vec3){3, 0, -15}, .2, .6, color(176., 143., 54.)},    // saturn
+        {(Vec3){3.5, 0, -15}, .2, .4, color(85., 128., 170.)},  // uranus
+        {(Vec3){4, 0, -15}, .2, .2, color(54., 104., 150.)},    // neptune
+        {(Vec3){0, 0, -15}, .2, 0, color(255, 255, 255)},       // sun
+    };
+
+    int i = 0;
+    while (planets[i].speed >= 0)
+    {
+        win->scene.objects[win->scene.pos].type = sphere_;
+        win->scene.objects[win->scene.pos].mat = Abs_;
+        win->scene.objects[win->scene.pos].center = planets[i].center;
+        win->scene.objects[win->scene.pos].radius = planets[i].rad;
+        win->scene.objects[win->scene.pos].speed = planets[i].speed;
+        win->scene.objects[win->scene.pos].color = planets[i].color;
+        win->scene.pos++;
+        i++;
+        // win->scene.objects[win->scene.pos].light_intensity = planets[i].light_intensity;
+        // win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
+    }
+     Vec3 p1, p2, p3;
+    p1 = (Vec3){0, 0, 0};
+    p2 = (Vec3){-2, 0, 0};
+    p3 = (Vec3){0, -1, 0};
+    win->scene.objects[win->scene.pos++] = new_rectangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+    win->scene.objects[win->scene.pos++] = new_cylinder(p3, 1.0, (Vec3){1, 1, 0}, (Color){1, 0, 0}, Abs_);
 }

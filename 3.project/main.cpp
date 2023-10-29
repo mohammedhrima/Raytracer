@@ -1,8 +1,6 @@
 #include "utils.cpp"
-_Atomic(int) frame_index;
-void add_objects(Win *win);
-int frame_shots = 0;
 
+void add_objects(Win *win);
 int main()
 {
     int width = 800;
@@ -15,7 +13,6 @@ int main()
     scene->objects = (Obj *)calloc(100, sizeof(Obj));
 
     scene->camera = (Vec3){0, 0, FOCAL_LEN};
-    scene->upv = (Vec3){0, 1, 0};
 
     sum = (Color *)calloc(win->width * win->height, sizeof(Color));
     init(win);
@@ -129,6 +126,7 @@ int main()
 
 void add_objects(Win *win)
 {
+#if 0
     struct
     {
         Vec3 center;
@@ -166,4 +164,50 @@ void add_objects(Win *win)
         // win->scene.objects[win->scene.pos].light_intensity = planets[i].light_intensity;
         // win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
     }
+#else
+    struct
+    {
+        Vec3 center;
+        float rad;
+        float speed;
+        Color color;
+    } planets[] = {
+        {(Vec3){-1, -1, 3}, 1, 0, COLORS[0]},
+        {(Vec3){0, 1, 3}, 1, 0, COLORS[3]},
+        {(Vec3){1, -1, 3}, 1, 0, COLORS[5]},
+
+        {(Vec3){}, 0, -1, (Color){}},
+        {(Vec3){.5, 0, -15}, .2, 1.6, (Color){26., 26., 26.}},    // mercury
+        {(Vec3){1, 0, -15}, .2, 1.4, (Color){230., 230., 230.}},  // venus
+        {(Vec3){1.5, 0, -15}, .2, 1.2, (Color){47., 106., 105.}}, // earth
+        {(Vec3){2, 0, -15}, .2, 1., (Color){153., 61., 0.}},      // mars
+        {(Vec3){2.5, 0, -15}, .2, .8, (Color){176., 127., 53.}},  // jupiter
+        {(Vec3){3, 0, -15}, .2, .6, (Color){176., 143., 54.}},    // saturn
+        {(Vec3){3.5, 0, -15}, .2, .4, (Color){85., 128., 170.}},  // uranus
+        {(Vec3){4, 0, -15}, .2, .2, (Color){54., 104., 150.}},    // neptune
+        {(Vec3){0, 0, -15}, .2, 0, (Color){255, 255, 255}},       // sun
+    };
+
+    int i = 0;
+    while (planets[i].speed >= 0)
+    {
+        win->scene.objects[win->scene.pos].type = sphere_;
+        win->scene.objects[win->scene.pos].mat = Abs_;
+        win->scene.objects[win->scene.pos].center = planets[i].center;
+        win->scene.objects[win->scene.pos].radius = planets[i].rad;
+        win->scene.objects[win->scene.pos].speed = planets[i].speed;
+        win->scene.objects[win->scene.pos].color = planets[i].color;
+        win->scene.pos++;
+        i++;
+        std::cout << "add sphere" << std::endl;
+        // win->scene.objects[win->scene.pos].light_intensity = planets[i].light_intensity;
+        // win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
+    }
+    Vec3 p1, p2, p3;
+    p1 = (Vec3){0, 0, 0};
+    p2 = (Vec3){-2, 0, 0};
+    p3 = (Vec3){0, -1, 0};
+    win->scene.objects[win->scene.pos++] = new_rectangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+    win->scene.objects[win->scene.pos++] = new_cylinder(p3, 1.0, (Vec3){1, 1, 0}, (Color){1, 0, 0}, Abs_);
+#endif
 }

@@ -4,7 +4,7 @@
 brew="$HOME/goinfre/homebrew"
 
 # Set the default file to compile
-file="1.project/main.cpp"
+file="3.project/main.cpp"
 if [ "$1" ]; then 
     file="$1"
 fi
@@ -59,6 +59,7 @@ dependencies=""
 if [[ "$file" == *.c ]]; then
   comp="cc"
   dependencies="$threads -lmlx -framework OpenGL -framework AppKit -mavx -ffast-math"
+
 # Check and install libomp
 threads="$brew/opt/libomp/lib/libomp.dylib"
 if [ ! -e "$threads" ]; then
@@ -75,6 +76,7 @@ else
 fi
 
 flags="-fsanitize=address -g3"
+
 # Compile and run the code
 cmd="$comp $flags $file -O3 $dependencies"
 echo "$cmd"

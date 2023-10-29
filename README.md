@@ -1,6 +1,4 @@
 ```bash
-bash run.sh # by default will compile 1.project/main.cpp
-#or
 bash run.sh path_to_c_or_cpp_file
 ```
 
@@ -8,5 +6,6 @@ bash run.sh path_to_c_or_cpp_file
     + up: to zoom in
     + down: to zoom out
 
-+ move mouse for rotation
-+ cliqe keys (up, down, left, right) for translation
++ rotation   : move the mouse
++ translation: clique keys (up, down, left, right)
++ animation  : set FRAMES_LEN macros to a nonzero positive value
