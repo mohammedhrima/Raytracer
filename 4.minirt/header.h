@@ -6,7 +6,7 @@
 /*   By: mhrima <mhrima@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/10/29 10:13:59 by mhrima            #+#    #+#             */
-/*   Updated: 2023/10/29 12:13:45 by mhrima           ###   ########.fr       */
+/*   Updated: 2023/11/02 13:41:54 by mhrima           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,11 +21,12 @@
 # include <stdio.h>
 # include <stdlib.h>
 # include <unistd.h>
+# include <stdint.h>
 
 # define ZERO .0001f
-# define HEIGHT 100
-# define WIDTH 200
-# define ESC 53
+# define WIDTH 400
+# define HEIGHT WIDTH/1.5f
+# define ESC 65307
 # define FOCAL_LEN 10
 # define RAYS_PER_PIXEL 25
 # define PI 3.1415926535897932385
@@ -52,17 +53,24 @@ typedef struct s_ray
 	t_vec3		org;
 }				t_ray;
 
-typedef struct s_sphere
-{
-	t_vec3		center;
-	float		radius;
-}				t_sphere;
+// typedef struct s_sphere
+// {
+// 	t_vec3		center;
+// 	float		radius;
+// }				t_sphere;
 
-typedef struct s_plan
-{
-	t_vec3		normal;
-	float		d;
-}				t_plan;
+// typedef struct s_plan
+// {
+// 	t_vec3		normal;
+// 	float		d;
+// }				t_plan;
+
+// typedef struct s_cylin
+// {
+// 	t_vec3		center;
+//     t_vec3		normal;
+//     float		radius;
+// }				t_cylin;
 
 typedef struct s_obj
 {
@@ -70,9 +78,17 @@ typedef struct s_obj
 	t_color		color;
 	t_color		light_color;
 	float		light_intensity;
-	t_sphere	sphere;
-	t_plan		plan;
 
+	// sphers
+	// t_vec3		center;
+	// float		radius;
+	// plan
+	t_vec3		normal;
+	float		d;
+	// cylin
+	t_vec3		center;
+    // t_vec3		normal;
+    float		radius;
 }				t_obj;
 
 typedef struct s_scene
@@ -139,8 +155,8 @@ int				listen_on_key(int code, t_win *win);
 int				draw(void *ptr);
 t_win			*new_window(int height, int width);
 void			set_pixels(t_win *win);
-float			hit_sphere(t_sphere sphere, t_ray ray, float min, float max);
-float			hit_plan(t_plan plan, t_ray ray, float min, float max);
+float			hit_sphere(t_obj sphere, t_ray ray, float min, float max);
+float			hit_plan(t_obj plan, t_ray ray, float min, float max);
 t_color			ray_color(t_win *win, t_ray ray, int depth);
 
 #endif

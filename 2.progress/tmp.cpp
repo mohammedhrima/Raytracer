@@ -1,6 +1,7 @@
 #include "../0.headers/SDL.h"
 #include <iostream>
 #include <unistd.h>
+#include <climits>
 
 // key eventt
 #define RELEASE SDL_KEYUP
@@ -10,6 +11,10 @@
 #define MOUSE_DOWN SDL_MOUSEBUTTONDOWN
 #define MOUSE_UP SDL_MOUSEBUTTONUP
 #define MOUSE_SCROLL SDL_MOUSEWHEEL
+
+// dimentions
+#define WIDTH 800
+#define HEIGHT WIDTH 
 
 // keys
 #define ESC 27
@@ -24,8 +29,8 @@
 #define MOUSE_LEFT SDL_BUTTON_LEFT
 
 // can't do mutiple frames with no threads
-#define THREADS_LEN 4
-#define FRAMES_LEN 0
+#define THREADS_LEN 16
+#define FRAMES_LEN 360
 
 #define ZERO .0001f
 #define PI 3.1415926535897932385
@@ -41,7 +46,7 @@
 #define COLORS                  \
     (Color[])                   \
     {                           \
-            {0.30, 0.92, 0.64}, \
+        {0.30, 0.92, 0.64},     \
             {0.39, 0.92, 0.63}, \
             {0.42, 0.92, 0.80}, \
             {0.47, 0.16, 0.92}, \
@@ -90,7 +95,7 @@ typedef union
 typedef Vec3 Color;
 
 #define BACKGROUND(a) \
-    (Color) { (1.0 - a) + a * .5, (1.0 - a) + a * .7, 1.0 }
+    (Color) { (1.0f - a) + a * .5f, (1.0f - a) + a * .7f, 1.0f }
 
 typedef struct
 {
@@ -130,8 +135,8 @@ typedef struct
 
 typedef struct
 {
-    Vec3 dir;
     Vec3 org;
+    Vec3 dir;
 } t_ray;
 
 typedef struct
@@ -180,7 +185,7 @@ float degrees_to_radians(float degrees)
 }
 Color color(float r, float g, float b)
 {
-    return (Color){r / 255.999, g / 255.999, b / 255.999};
+    return (Color){r / 255.999f, g / 255.999f, b / 255.999f};
 }
 // thank you cpp
 Vec3 operator+(Vec3 l, Vec3 r)
@@ -311,7 +316,7 @@ Obj new_rectangle(Vec3 p1, Vec3 p2, Vec3 p3, Color color, Mat mat)
     obj.type = rectangle_;
     obj.p1 = p1;
     obj.p2 = p2;
-    obj.p3 = p2;
+    obj.p3 = p3;
 
     obj.normal = cross(unit_vector(p2 - p1), unit_vector(p3 - p1));
     obj.color = color;
@@ -580,7 +585,7 @@ Color ray_color(Win *win, t_ray ray, int depth)
         }
         else
         {
-            light = light + attenuation * BACKGROUND(0.5 * (unit_vector(ray.dir).y + 1.0));
+            light = light + attenuation * BACKGROUND(0.5f * (unit_vector(ray.dir).y + 1.0f));
             break;
         }
         if (attenuation.x <= ZERO && attenuation.y <= ZERO && attenuation.z <= ZERO)
@@ -794,7 +799,7 @@ void divideWindow(Win *win, int threadNum, int &x_start, int &y_start, int &w, i
 }
 
 Color *sum;
-_Atomic(int) frame_index;
+extern _Atomic(int) frame_index;
 int is_mouse_down = 0;
 int frame_shots;
 
@@ -823,17 +828,17 @@ void *Multi_TraceRay(void *arg)
                 int rays_per_pixel = 9;
                 Color pixel = (Color){0, 0, 0};
 #if FRAMES_LEN
+#endif
                 for (int i = 0; i < rays_per_pixel; i++)
                 {
-#endif
                     Vec3 pixel_center = scene->first_pixel + ((float)w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
                     Vec3 dir = pixel_center - scene->camera;
                     t_ray ray = (t_ray){.org = scene->camera, .dir = dir};
                     pixel = pixel + ray_color(win, ray, 5);
 #if FRAMES_LEN
+#endif
                 }
                 pixel = pixel / rays_per_pixel;
-#endif
                 sum[h * win->width + w] = sum[h * win->width + w] + pixel;
                 pixel = sum[h * win->width + w] / (float)frame_index;
                 if (pixel.r > 1)
@@ -973,4 +978,179 @@ void listen_on_events(Win *win, int &quit)
             break;
         }
     }
+}
+
+_Atomic(int) frame_index;
+void add_objects(Win *win);
+int main()
+{
+    time_t time_start, time_end;
+    Win *win = new_window(WIDTH, HEIGHT, (char *)"Mini Raytracer");
+    Scene *scene = &win->scene;
+    scene->objects = (Obj *)calloc(100, sizeof(Obj));
+
+    scene->camera = (Vec3){0, 0, FOCAL_LEN};
+
+    sum = (Color *)calloc(win->width * win->height, sizeof(Color));
+    init(win);
+    frame_index = 1;
+    int quit = 0;
+    int frame_shot = 0;
+    add_objects(win);
+
+#if THREADS_LEN
+    for (int i = 0; i < THREADS_LEN; i++)
+        win->thread_finished[i] = 1;
+    Multi *multis[THREADS_LEN];
+    for (int i = 0; i < THREADS_LEN; i++)
+    {
+        multis[i] = new_multi(i, win);
+        pthread_create(&multis[i]->thread, nullptr, Multi_TraceRay, multis[i]);
+    }
+#if FRAMES_LEN
+    unsigned int *FramesList[FRAMES_LEN];
+#endif
+#else
+    // no threads
+    TraceRay(win);
+#endif
+
+    int i = 0;
+    while (!quit)
+    {
+        listen_on_events(win, quit); // to exit for example
+#if THREADS_LEN
+        // set all threads to not finished
+        for (int i = 0; i < THREADS_LEN; i++)
+            win->thread_finished[i] = 0;
+        time_start = get_time();
+#if FRAMES_LEN
+        while (THREADS_LEN && frame_shots < FRAMES_LEN)
+        {
+            int finished = 1;
+
+            for (int i = 0; i < THREADS_LEN; i++)
+            {
+                if (!win->thread_finished[i])
+                    finished = 0;
+            }
+            if (finished)
+                break;
+            usleep(1000);
+        }
+        // record animation
+        if (frame_shots < FRAMES_LEN)
+        {
+            std::cout << "Recording frame: " << frame_shots << std::endl;
+            FramesList[frame_shots] = (uint32_t *)calloc(win->width * win->height, sizeof(uint32_t));
+            memcpy(FramesList[frame_shots++], win->pixels, win->width * win->height * sizeof(uint32_t));
+            int i = 0;
+            while (win->scene.objects[i].type == sphere_ && win->scene.objects[i].speed >= 0)
+            {
+                win->scene.objects[i].center = rotate(win, win->scene.objects[i].center, 'z', win->scene.objects[i].speed * degrees_to_radians(1));
+                i++;
+            }
+            frame_index = 0;
+            memset(sum, COLOR(0, 0, 0), win->width * win->height * sizeof(Color));
+            while (1)
+            {
+                int finished = 1;
+
+                for (int i = 0; i < THREADS_LEN; i++)
+                {
+                    if (!win->thread_finished[i])
+                        finished = 0;
+                }
+                if (finished)
+                    break;
+                usleep(1000);
+            }
+            init(win); // to be checked
+        }
+        // play animation
+        else
+        {
+            frame_index = frame_index % FRAMES_LEN;
+            std::cout << "Playing frame: " << frame_index << std::endl;
+            memcpy(win->pixels, FramesList[frame_index], win->width * win->height * sizeof(uint32_t));
+            usleep(1000);
+        }
+#else
+        // int i = 0;
+        // while (win->scene.objects[i].type == sphere_ && i < 10)
+        // {
+        //     win->scene.objects[i].center = rotate(win, win->scene.objects[i].center, 'z', win->scene.objects[i].speed * degrees_to_radians(1));
+        //     i++;
+        // }
+        // frame_index =  1;
+
+        memset(sum, COLOR(0, 0, 0), win->width * win->height * sizeof(Color));
+
+        while (1)
+        {
+            int finished = 1;
+
+            for (int i = 0; i < THREADS_LEN; i++)
+            {
+                if (!win->thread_finished[i])
+                    finished = 0;
+            }
+            if (finished)
+                break;
+            usleep(1000);
+        }
+        init(win); // to be checked
+#endif
+        frame_index++;
+        time_end = get_time();
+        std::string dynamicTitle = std::to_string(time_end - time_start) + std::string(" ms");
+        SDL_SetWindowTitle(win->window, dynamicTitle.c_str());
+#endif
+        update_window(win);
+    }
+    close_window(win);
+}
+
+void add_objects(Win *win)
+{
+    struct
+    {
+        Vec3 center;
+        float rad;
+        float speed;
+        Color color;
+    } planets[] = {
+        {(Vec3){0, 0, -1}, .3, 0, color(255, 255, 255)},      // sun
+        {(Vec3){.7, 0, -1}, .3, 2.6, color(26., 26., 26.)},     // mercury
+        {(Vec3){-.7, 0, -1}, .3, 2.6, color(230., 230., 230.)}, // venus
+        {(Vec3){1.4, 0, -1}, .3, 2, color(47., 106., 105.)},  // earth
+        {(Vec3){-1.4, 0, -1}, .3, 2, color(153., 61., 0.)},     // mars
+        {(Vec3){2.1, 0, -1}, .3, 1.4, color(176., 127., 53.)},   // jupiter
+        {(Vec3){-2.1, 0, -1}, .3, 1.4, color(176., 143., 54.)},   // saturn
+        {(Vec3){2.8, 0, -1}, .3, 0.8, color(85., 128., 170.)},   // uranus
+        {(Vec3){-2.8, 0, -1}, .3, 0.8, color(54., 104., 150.)},   // neptune
+        {(Vec3){}, 0, -1, (Color){}},
+    };
+
+    int i = 0;
+    while (planets[i].speed >= 0)
+    {
+        win->scene.objects[win->scene.pos].type = sphere_;
+        win->scene.objects[win->scene.pos].mat = Abs_;
+        win->scene.objects[win->scene.pos].center = planets[i].center;
+        win->scene.objects[win->scene.pos].radius = planets[i].rad;
+        win->scene.objects[win->scene.pos].speed = planets[i].speed;
+        win->scene.objects[win->scene.pos].color = planets[i].color;
+        win->scene.pos++;
+        i++;
+        std::cout << "add sphere" << std::endl;
+        // win->scene.objects[win->scene.pos].light_intensity = planets[i].light_intensity;
+        // win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
+    }
+    // Vec3 p1, p2, p3;
+    // p1 = (Vec3){0, 0, 0};
+    // p2 = (Vec3){-2, 0, 0};
+    // p3 = (Vec3){0, -1, 0};
+    // win->scene.objects[win->scene.pos++] = new_rectangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
+    // win->scene.objects[win->scene.pos++] = new_cylinder(p3, 1.0, (Vec3){1, 1, 0}, (Color){1, 0, 0}, Abs_);
 }

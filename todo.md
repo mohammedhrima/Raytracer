@@ -1,12 +1,9 @@
 + create a cylinder, Cone, Hyperboloid, Paraboloid !!!
 + implement light from one point
-+ specular reflection ?
 + add textures
++ build simple arm
++ “Rasterization"
 
-+ check  “Rasterization"
-
-+ cube3D b3aqlo
-+ fix the rectangle !!!
 + detect closest objects
 + create a mini solid works
 + start a mini game (maybe a mini pacman)

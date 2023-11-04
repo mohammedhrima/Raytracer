@@ -6,7 +6,7 @@
 /*   By: mhrima <mhrima@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/10/29 10:20:37 by mhrima            #+#    #+#             */
-/*   Updated: 2023/10/29 12:01:16 by mhrima           ###   ########.fr       */
+/*   Updated: 2023/11/01 17:31:19 by mhrima           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,6 +20,7 @@ void	close_window(t_win *win)
 
 int	listen_on_key(int code, t_win *win)
 {
+	printf("%d\n", code);
 	if (code == ESC)
 		close_window(win);
 	return (0);

@@ -2,6 +2,7 @@
 **/a.out.dSYM
 **/.vscode
 **/*.ppm
+**/*.o
+**/minirt
 **/.DS_Store
 .DS_Store
-
