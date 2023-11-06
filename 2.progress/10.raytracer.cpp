@@ -1,4 +1,4 @@
-#include "../../0.headers/SDL.h"
+#include "../0.headers/SDL.h"
 #include <iostream>
 #include <unistd.h>
 #include <climits>
@@ -13,7 +13,7 @@
 #define MOUSE_SCROLL SDL_MOUSEWHEEL
 
 // dimentions
-#define WIDTH 200
+#define WIDTH 800
 #define HEIGHT WIDTH
 
 // keys
@@ -29,8 +29,8 @@
 #define MOUSE_LEFT SDL_BUTTON_LEFT
 
 // can't do mutiple frames with no threads
-#define THREADS_LEN 0
-#define FRAMES_LEN 0
+#define THREADS_LEN 16
+#define FRAMES_LEN 360
 
 #define ZERO .0001f
 #define PI 3.1415926535897932385
@@ -46,7 +46,8 @@
 #define COLORS                  \
     (Color[])                   \
     {                           \
-        {0.30, 0.92, 0.64},     \
+        {1, 1, 1},              \
+            {0.30, 0.92, 0.64}, \
             {0.39, 0.92, 0.63}, \
             {0.42, 0.92, 0.80}, \
             {0.47, 0.16, 0.92}, \
@@ -95,7 +96,7 @@ typedef union
 typedef Vec3 Color;
 
 #define BACKGROUND(a) \
-    (Color) { 1.0f - a * 0.5f, 1.0f - a * 0.3f, 1.0f }
+    (Color) { (1.0f - a) + a * .5f, (1.0f - a) + a * .7f, 1.0f }
 
 typedef struct
 {
@@ -113,7 +114,6 @@ typedef struct
             Vec3 center;
             float radius;
             float speed;
-            float height;
         };
         struct
         {
@@ -188,10 +188,6 @@ Color color(float r, float g, float b)
 {
     return (Color){r / 255.999f, g / 255.999f, b / 255.999f};
 }
-float pow2(float x)
-{
-    return x * x;
-}
 // thank you cpp
 Vec3 operator+(Vec3 l, Vec3 r)
 {
@@ -239,7 +235,7 @@ float length(Vec3 v)
 {
     return sqrt(length_squared(v));
 }
-float dot(Vec3 u, Vec3 v)
+float unit_dot(Vec3 u, Vec3 v)
 {
     return (u.x * v.x + u.y * v.y + u.z * v.z);
 }
@@ -281,7 +277,6 @@ time_t get_time()
 }
 Obj new_sphere(Vec3 center, float radius, Color color, Mat mat)
 {
-    std::cout << "new sphere" << std::endl;
     Obj obj = {};
     obj.type = sphere_;
     obj.center = center;
@@ -293,7 +288,6 @@ Obj new_sphere(Vec3 center, float radius, Color color, Mat mat)
 
 Obj new_plan(Vec3 normal, float d, Color color, Mat mat)
 {
-    std::cout << "new plan" << std::endl;
     Obj obj = {};
     obj.type = plan_;
     obj.normal = unit_vector(normal);
@@ -304,40 +298,41 @@ Obj new_plan(Vec3 normal, float d, Color color, Mat mat)
 }
 Obj new_triangle(Vec3 p1, Vec3 p2, Vec3 p3, Color color, Mat mat)
 {
-    std::cout << "new triangle" << std::endl;
     Obj obj = {};
     obj.type = triangle_;
     obj.p1 = p1;
     obj.p2 = p2;
     obj.p3 = p3;
-    obj.normal = cross(p2 - p1, p3 - p1);
+
+    obj.normal = cross(unit_vector(p2 - p1), unit_vector(p3 - p1));
     obj.color = color;
     obj.mat = mat;
+
     return obj;
 }
 
 Obj new_rectangle(Vec3 p1, Vec3 p2, Vec3 p3, Color color, Mat mat)
 {
-    std::cout << "new rectangle" << std::endl;
     Obj obj = {};
     obj.type = rectangle_;
     obj.p1 = p1;
     obj.p2 = p2;
     obj.p3 = p3;
-    obj.normal = cross(p2 - p1, p3 - p1);
+
+    obj.normal = cross(unit_vector(p2 - p1), unit_vector(p3 - p1));
     obj.color = color;
     obj.mat = mat;
+
     return obj;
 }
 
-Obj new_cylinder(Vec3 center, float radius, float height, Vec3 normal, Color color, Mat mat)
+Obj new_cylinder(Vec3 center, float radius, Vec3 normal, Color color, Mat mat)
 {
     Obj obj = {};
     obj.type = cylinder_;
     obj.center = center;
     obj.radius = radius;
-    obj.height = height;
-    obj.normal = unit_vector(normal);
+    obj.normal = normal;
     obj.color = color;
     obj.mat = mat;
     return obj;
@@ -372,10 +367,14 @@ Win *new_window(int width, int height, char *title)
     win->screen_texture = SDL_CreateTexture(win->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, width, height);
     return win;
 }
+void init(Win *win);
 void update_window(Win *win)
 {
+    // Update the texture with the modified pixel data
     SDL_UpdateTexture(win->screen_texture, NULL, win->pixels, win->width * 4);
+    // Copy the texture to the renderer
     SDL_RenderCopy(win->renderer, win->screen_texture, NULL, NULL);
+    // Present the renderer
     SDL_RenderPresent(win->renderer);
 }
 void close_window(Win *win)
@@ -394,7 +393,7 @@ float hit_sphere(Obj sphere, t_ray ray, float min, float max)
     Vec3 OC = ray.org - sphere.center;
 
     float a = length_squared(ray.dir);
-    float half_b = dot(OC, ray.dir);
+    float half_b = unit_dot(OC, ray.dir);
     float c = length_squared(OC) - sphere.radius * sphere.radius;
     float delta = half_b * half_b - a * c;
     if (delta < .0)
@@ -408,69 +407,18 @@ float hit_sphere(Obj sphere, t_ray ray, float min, float max)
     return (sol);
 }
 
-float hit_plan(Obj plan, t_ray ray, float min, float max);
 float hit_cylinder(Obj cylin, t_ray ray, float min, float max)
 {
-    Vec3 ran = {0, 0, 1};
-    if (fabsf(dot(ran, cylin.normal)) >= 0.9f)
-        ran = {1, 0, 0};
-    Vec3 u = unit_vector(cross(ran, cylin.normal));
-    Vec3 v = unit_vector(cross(cylin.normal, u));
-
-    float a = pow2(dot(u, ray.dir)) + pow2(dot(v, ray.dir));
-    float b = 2 * (dot((ray.org - cylin.center), u) * dot(u, ray.dir) + dot((ray.org - cylin.center), v) * dot(v, ray.dir));
-    float c = pow2(dot((ray.org - cylin.center), u)) + pow2(dot((ray.org - cylin.center), v)) - pow2(cylin.radius);
-
-    float delta = b * b - 4 * a * c;
-    if (delta < 0)
-        return -1.0;
-    delta = sqrt(delta);
-    // hit cylinder
-    float x1 = (-b + delta) / (2 * a);
-    float x2 = (-b - delta) / (2 * a);
-
-    if (x1 < min || x1 > max)
-        x1 = -1.0;
-    if (x2 < min || x2 > max)
-        x2 = -1.0;
-
-    float x;
-    if (x1 == -1 && x2 == -1)
-        return -1.0;
-
-    if (x1 == -1 || x2 < x1)
-        x = x2;
-    if (x2 == -1 || x1 < x2)
-        x = x1;
-
-    float cal = fabsf(dot(cylin.normal, point_at(ray, x) - cylin.center));
-    if (cal > cylin.height / 2)
-        x = -1.0;
-
-    Vec3 c1 = cylin.center + (cylin.height / 2) * cylin.normal;
-    float d1 = hit_plan((Obj){.type = plan_, .normal = cylin.normal, .d = dot(c1, cylin.normal)}, ray, min, max);
-    if (d1 > 0)
-    {
-        Vec3 p1 = point_at(ray, d1);
-        if (length(p1 - c1) <= cylin.radius && (x == -1.0 || d1 < x))
-            x = d1;
-    }
-
-    Vec3 c2 = cylin.center - (cylin.height / 2) * cylin.normal;
-    float d2 = hit_plan((Obj){.type = plan_, .normal = -1 * cylin.normal, .d = dot(c2, -1 * cylin.normal)}, ray, min, max);
-    if (d2 > 0)
-    {
-        Vec3 p1 = point_at(ray, d2);
-        if (length(p1 - c2) <= cylin.radius && (x == -1.0 || d2 < x))
-            x = d2;
-    }
-    return x;
+    float t = hit_sphere(cylin, ray, min, max);
+    if (t != -1.0 && unit_dot(unit_vector(point_at(ray, t)), cylin.normal) == 0)
+        return t;
+    return -1.0;
 }
 
 float hit_plan(Obj plan, t_ray ray, float min, float max)
 {
-    float t = plan.d - dot(plan.normal, ray.org);
-    float div = dot(ray.dir, plan.normal);
+    float t = plan.d - unit_dot(plan.normal, ray.org);
+    float div = unit_dot(ray.dir, plan.normal);
     if (fabsf(div) <= ZERO)
         return -1.0;
     t /= div;
@@ -481,63 +429,58 @@ float hit_plan(Obj plan, t_ray ray, float min, float max)
 
 float hit_triangle(Obj trian, t_ray ray, float min, float max)
 {
-    float t = dot(trian.normal, (trian.p1 - ray.org));
-    float div = dot(trian.normal, ray.dir);
+    float t = unit_dot(trian.normal, (trian.p1 - ray.org));
+    float div = unit_dot(trian.normal, ray.dir);
     if (fabsf(div) <= ZERO)
         return -1.0;
     t /= div;
     if (t <= min || t >= max)
         return -1.0;
-#if 1
+#if 0
     Vec3 p = point_at(ray, t) - trian.p1;
     Vec3 u = trian.p2 - trian.p1;
     Vec3 v = trian.p3 - trian.p1;
-    Vec3 w = trian.normal / dot(trian.normal, trian.normal);
-    float alpha = dot(cross(p, v), w);
-    float beta = -dot(cross(p, u), w);
-    if (alpha < 0 || beta < 0 || alpha + beta > 1.0)
-        return -1.0;
-#elif 0
-    float len = length(trian.normal);
-    Vec3 w = point_at(ray, t) - trian.p1;
+    Vec3 normal = cross(u, v);
+    Vec3 w = normal / unit_dot(normal, normal);
+    float alpha = unit_dot(cross(p, v), w);
+    float beta = -unit_dot(cross(p, u), w);
+#endif
     Vec3 u = trian.p2 - trian.p1;
     Vec3 v = trian.p3 - trian.p1;
-    float beta = -dot(cross(w, u), trian.normal) / (len * len);
-    float alpha = dot(cross(w, v), trian.normal) / (len * len);
-    if (alpha < 0 || beta < 0 || alpha + beta > 1.0)
+    Vec3 rp = point_at(ray, t) - trian.p1;
+    float d = u.x * v.y - u.y * v.x;
+    if (d == 0)
         return -1.0;
-#else
-    Vec3 p = point_at(ray, t);
-    Vec3 a = trian.p1 - p;
-    Vec3 b = trian.p2 - p;
-    Vec3 c = trian.p3 - p;
-    Vec3 u = cross(b, c);
-    Vec3 v = cross(c, a);
-    Vec3 w = cross(a, b);
-    if (dot(unit_vector(u), unit_vector(v)) < ZERO || dot(unit_vector(u), unit_vector(w)) < ZERO)
-        return -1.0;
-#endif
+    float alpha = (rp.x * v.y - rp.y * v.x) / d;
+    float beta = (u.x * rp.y - u.y * rp.x) / d;
+
+    if (alpha < 0 || beta < 0 || alpha + beta > 1)
+        return -1;
+
     return t;
 }
 
 float hit_rectangle(Obj rec, t_ray ray, float min, float max)
 {
-    float t = dot(rec.normal, (rec.p1 - ray.org));
-    float div = dot(rec.normal, ray.dir);
+    float t = unit_dot(rec.normal, (rec.p1 - ray.org));
+    float div = unit_dot(rec.normal, ray.dir);
     if (fabsf(div) <= ZERO)
         return -1.0;
     t /= div;
     if (t <= min || t >= max)
         return -1.0;
 
-    float len = length(rec.normal);
-    Vec3 w = point_at(ray, t) - rec.p1;
     Vec3 u = rec.p2 - rec.p1;
     Vec3 v = rec.p3 - rec.p1;
-    float beta = -dot(cross(w, u), rec.normal) / (len * len);
-    float alpha = dot(cross(w, v), rec.normal) / (len * len);
-    if (alpha < 0 || beta < 0 || alpha > 1.0 || beta > 1.0)
+    Vec3 rp = point_at(ray, t) - rec.p1;
+    float d = u.x * v.y - u.y * v.x;
+    if (d == 0)
         return -1.0;
+    float alpha = (rp.x * v.y - rp.y * v.x) / d;
+    float beta = (u.x * rp.y - u.y * rp.x) / d;
+
+    if (alpha < 0 || beta < 0 || alpha > 1 || beta > 1)
+        return -1;
 
     return t;
 }
@@ -565,7 +508,7 @@ t_ray render_object(Obj obj, t_ray ray, float closest)
         break;
     }
 
-    bool same_dir = dot(cp_norm, ray.dir) >= 0;
+    bool same_dir = unit_dot(cp_norm, ray.dir) >= 0;
     if (same_dir) // to be used when drawing triangle
         cp_norm = (Vec3){-cp_norm.x, -cp_norm.y, -cp_norm.z};
     Vec3 ranv = random_unit_vector();
@@ -573,7 +516,7 @@ t_ray render_object(Obj obj, t_ray ray, float closest)
     if (obj.mat == Refl_)
     {
         float val;
-        val = -2 * dot(ray.dir, cp_norm);
+        val = -2 * unit_dot(ray.dir, cp_norm);
         ndir = (Vec3){ray.dir.x + val * cp_norm.x, ray.dir.y + val * cp_norm.y, ray.dir.z + val * cp_norm.z};
     }
     else if (obj.mat == Refr_)
@@ -581,20 +524,20 @@ t_ray render_object(Obj obj, t_ray ray, float closest)
         float index_of_refraction = 1.5;
         float refraction_ratio = same_dir ? index_of_refraction : (1.0 / index_of_refraction);
 
-        float cos_theta = dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm));
+        float cos_theta = unit_dot(ray.dir, cp_norm) / (length(ray.dir) * length(cp_norm));
         float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
         if (refraction_ratio * sin_theta > 1.0)
         {
             // Reflect
             float val;
-            val = -2 * dot(ray.dir, cp_norm);
+            val = -2 * unit_dot(ray.dir, cp_norm);
             ndir = (Vec3){ray.dir.x + val * cp_norm.x, ray.dir.y + val * cp_norm.y, ray.dir.z + val * cp_norm.z};
         }
         else
         {
             // Refract
             Vec3 ray_dir = unit_vector(ray.dir);
-            Vec3 Perp = refraction_ratio * (ray_dir - (dot(ray_dir, cp_norm) * cp_norm));
+            Vec3 Perp = refraction_ratio * (ray_dir - (unit_dot(ray_dir, cp_norm) * cp_norm));
             Vec3 Para = sqrt(1 - pow(length(Perp), 2)) * (-1 * cp_norm);
             ndir = Perp + Para;
         }
@@ -627,10 +570,7 @@ Color ray_color(Win *win, t_ray ray, int depth)
             else if (scene->objects[i].type == triangle_)
                 x = hit_triangle(scene->objects[i], ray, ZERO, closest);
             else if (scene->objects[i].type == rectangle_)
-            {
-                // std::cout << "call hit rectangle" << std::endl;
                 x = hit_rectangle(scene->objects[i], ray, ZERO, closest);
-            }
             if (x > .0)
             {
                 hit_index = i;
@@ -646,7 +586,6 @@ Color ray_color(Win *win, t_ray ray, int depth)
         }
         else
         {
-            // return BACKGROUND(0.5f * (unit_vector(ray.dir).y + 1.0f));
             light = light + attenuation * BACKGROUND(0.5f * (unit_vector(ray.dir).y + 1.0f));
             break;
         }
@@ -660,7 +599,7 @@ Color ray_color_recursive(Scene *scene, t_ray ray, int depth, Color light, Color
 {
     // TODO: must be understood
     if (depth == 0)
-        return attenuation * BACKGROUND(0.5f * (unit_vector(ray.dir).y + 1.0f));
+        return attenuation * BACKGROUND(0.5 * (unit_vector(ray.dir).y + 1.0));
     if (attenuation.x <= ZERO && attenuation.y <= ZERO && attenuation.z <= ZERO)
         return light;
 
@@ -693,7 +632,7 @@ Color ray_color_recursive(Scene *scene, t_ray ray, int depth, Color light, Color
         attenuation = attenuation * obj->color;
     }
     else
-        light = light + attenuation * BACKGROUND(0.5f * (unit_vector(ray.dir).y + 1.0f));
+        light = light + attenuation * BACKGROUND(0.5 * (unit_vector(ray.dir).y + 1.0));
     return ray_color_recursive(scene, ray, depth - 1, light, attenuation);
 }
 Color ray_color(Win *win, t_ray ray, int depth)
@@ -711,19 +650,19 @@ float x_rotation = 0;
 Vec3 rotate(Win *win, Vec3 u, int axes, float angle);
 void init(Win *win)
 {
-#if 1
+#if 0
     Scene *scene = &win->scene;
 
-    scene->cam_dir =  (Vec3){0, 0, -FOCAL_LEN};
+    scene->cam_dir = (Vec3){0, 0.65, -1};
     scene->cam_dir = rotate(win, scene->cam_dir, 'y', x_rotation);
     scene->cam_dir = rotate(win, scene->cam_dir, 'x', y_rotation);
     scene->w = -1 * unit_vector(scene->cam_dir); // step in z axis and z
     Vec3 upv = (Vec3){0, 1, 0};
 
-    upv = rotate(win, upv, 'y', x_rotation);
+     upv = rotate(win, upv, 'y', x_rotation);
     upv = rotate(win,  upv, 'x', y_rotation);
 
-    float tang = tan(degrees_to_radians(40 / 2));
+    float tang = tan(degrees_to_radians(20) / 2);
     float screen_height = 2 * tang * FOCAL_LEN;
     float screen_width = screen_height * ((float)win->width / win->height);
 
@@ -890,17 +829,17 @@ void *Multi_TraceRay(void *arg)
                 int rays_per_pixel = 9;
                 Color pixel = (Color){0, 0, 0};
 #if FRAMES_LEN
+#endif
                 for (int i = 0; i < rays_per_pixel; i++)
                 {
-#endif
                     Vec3 pixel_center = scene->first_pixel + ((float)w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
                     Vec3 dir = pixel_center - scene->camera;
                     t_ray ray = (t_ray){.org = scene->camera, .dir = dir};
                     pixel = pixel + ray_color(win, ray, 5);
 #if FRAMES_LEN
+#endif
                 }
                 pixel = pixel / rays_per_pixel;
-#endif
                 sum[h * win->width + w] = sum[h * win->width + w] + pixel;
                 pixel = sum[h * win->width + w] / (float)frame_index;
                 if (pixel.r > 1)
@@ -918,6 +857,7 @@ void *Multi_TraceRay(void *arg)
     return NULL;
 }
 #else
+
 void TraceRay(Win *win)
 {
     std::cout << "Tracing ray" << std::endl;
@@ -956,13 +896,14 @@ void listen_on_events(Win *win, int &quit)
     {
         Vec3 move;
         char *msg;
-    } trans[1000];
-    trans[FORWARD - 1073741900] = {(Vec3){0, 0, -1}, (char *)"forward"};
-    trans[BACKWARD - 1073741900] = {(Vec3){0, 0, 1}, (char *)"backward"};
-    trans[UP - 1073741900] = {(Vec3){0, 1, 0}, (char *)"up"};
-    trans[DOWN - 1073741900] = {(Vec3){0, -1, 0}, (char *)"down"};
-    trans[LEFT - 1073741900] = {(Vec3){-1, 0, 0}, (char *)"left"};
-    trans[RIGHT - 1073741900] = {(Vec3){1, 0, 0}, (char *)"right"};
+    } trans[1000] = {
+        [FORWARD - 1073741900] = {(Vec3){0, 0, -1}, (char *)"forward"},
+        [BACKWARD - 1073741900] = {(Vec3){0, 0, 1}, (char *)"backward"},
+        [UP - 1073741900] = {(Vec3){0, 1, 0}, (char *)"up"},
+        [DOWN - 1073741900] = {(Vec3){0, -1, 0}, (char *)"down"},
+        [LEFT - 1073741900] = {(Vec3){-1, 0, 0}, (char *)"left"},
+        [RIGHT - 1073741900] = {(Vec3){1, 0, 0}, (char *)"right"},
+    };
     Scene *scene = &win->scene;
     while (SDL_PollEvent(&win->ev) != 0)
     {
@@ -1136,6 +1077,16 @@ int main()
             usleep(1000);
         }
 #else
+        // int i = 0;
+        // while (win->scene.objects[i].type == sphere_ && i < 10)
+        // {
+        //     win->scene.objects[i].center = rotate(win, win->scene.objects[i].center, 'z', win->scene.objects[i].speed * degrees_to_radians(1));
+        //     i++;
+        // }
+        // frame_index =  1;
+
+        memset(sum, COLOR(0, 0, 0), win->width * win->height * sizeof(Color));
+
         while (1)
         {
             int finished = 1;
@@ -1163,7 +1114,6 @@ int main()
 
 void add_objects(Win *win)
 {
-#if 0
     struct
     {
         Vec3 center;
@@ -1171,58 +1121,16 @@ void add_objects(Win *win)
         float speed;
         Color color;
     } planets[] = {
-        {(Vec3){-1, -1, -3}, 1, 0, COLORS[0]},
-        {(Vec3){0, 1, -3}, 1, 0, COLORS[3]},
-        {(Vec3){1, -1, -3}, 1, 0, COLORS[5]},
-
+        {(Vec3){0, 0, -1}, .3, 0, color(255, 255, 255)},        // sun
+        {(Vec3){.7, 0, -1}, .3, 2.6, color(26., 26., 26.)},     // mercury
+        {(Vec3){-.7, 0, -1}, .3, 2.6, color(230., 230., 230.)}, // venus
+        {(Vec3){1.4, 0, -1}, .3, 2, color(47., 106., 105.)},    // earth
+        {(Vec3){-1.4, 0, -1}, .3, 2, color(153., 61., 0.)},     // mars
+        {(Vec3){2.1, 0, -1}, .3, 1.4, color(176., 127., 53.)},  // jupiter
+        {(Vec3){-2.1, 0, -1}, .3, 1.4, color(176., 143., 54.)}, // saturn
+        {(Vec3){2.8, 0, -1}, .3, 0.8, color(85., 128., 170.)},  // uranus
+        {(Vec3){-2.8, 0, -1}, .3, 0.8, color(54., 104., 150.)}, // neptune
         {(Vec3){}, 0, -1, (Color){}},
-        {(Vec3){.5, 0, -15}, .2, 1.6, color(26., 26., 26.)},    // mercury
-        {(Vec3){1, 0, -15}, .2, 1.4, color(230., 230., 230.)},  // venus
-        {(Vec3){1.5, 0, -15}, .2, 1.2, color(47., 106., 105.)}, // earth
-        {(Vec3){2, 0, -15}, .2, 1., color(153., 61., 0.)},      // mars
-        {(Vec3){2.5, 0, -15}, .2, .8, color(176., 127., 53.)},  // jupiter
-        {(Vec3){3, 0, -15}, .2, .6, color(176., 143., 54.)},    // saturn
-        {(Vec3){3.5, 0, -15}, .2, .4, color(85., 128., 170.)},  // uranus
-        {(Vec3){4, 0, -15}, .2, .2, color(54., 104., 150.)},    // neptune
-        {(Vec3){0, 0, -15}, .2, 0, color(255, 255, 255)},       // sun
-    };
-
-    int i = 0;
-    while (planets[i].speed >= 0)
-    {
-        win->scene.objects[win->scene.pos].type = sphere_;
-        win->scene.objects[win->scene.pos].mat = Abs_;
-        win->scene.objects[win->scene.pos].center = planets[i].center;
-        win->scene.objects[win->scene.pos].radius = planets[i].rad;
-        win->scene.objects[win->scene.pos].speed = planets[i].speed;
-        win->scene.objects[win->scene.pos].color = planets[i].color;
-        win->scene.pos++;
-        i++;
-        // win->scene.objects[win->scene.pos].light_intensity = planets[i].light_intensity;
-        // win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
-    }
-#else
-    struct
-    {
-        Vec3 center;
-        float rad;
-        float speed;
-        Color color;
-    } planets[] = {
-        {(Vec3){}, 0, -1, (Color){}},
-        {(Vec3){-1, -1, 3}, 1, 0, COLORS[0]},
-        {(Vec3){0, 1, 3}, 1, 0, COLORS[3]},
-        {(Vec3){1, -1, 3}, 1, 0, COLORS[5]},
-
-        {(Vec3){.5, 0, -15}, .2, 1.6, (Color){26., 26., 26.}},    // mercury
-        {(Vec3){1, 0, -15}, .2, 1.4, (Color){230., 230., 230.}},  // venus
-        {(Vec3){1.5, 0, -15}, .2, 1.2, (Color){47., 106., 105.}}, // earth
-        {(Vec3){2, 0, -15}, .2, 1., (Color){153., 61., 0.}},      // mars
-        {(Vec3){2.5, 0, -15}, .2, .8, (Color){176., 127., 53.}},  // jupiter
-        {(Vec3){3, 0, -15}, .2, .6, (Color){176., 143., 54.}},    // saturn
-        {(Vec3){3.5, 0, -15}, .2, .4, (Color){85., 128., 170.}},  // uranus
-        {(Vec3){4, 0, -15}, .2, .2, (Color){54., 104., 150.}},    // neptune
-        {(Vec3){0, 0, -15}, .2, 0, (Color){255, 255, 255}},       // sun
     };
 
     int i = 0;
@@ -1240,24 +1148,10 @@ void add_objects(Win *win)
         // win->scene.objects[win->scene.pos].light_intensity = planets[i].light_intensity;
         // win->scene.objects[win->scene.pos].light_color = (Color){1, 1, 1};
     }
-#if 0
-    Vec3 p0 = {0, -1, -2};
-
-    Vec3 v0 = {1, 0, 0};
-    Vec3 v1 = {0, 0, -1}; 
-
-    Vec3 p1, p2, p3;
-    p1 = p0;
-    p2 = p0 + v0;
-    p3 = p0 + v1;
-#else
-    Vec3 p1 = {1, -1, -100};
-    Vec3 p2 = {-1, -1, -100};
-    Vec3 p3 = {0, 1, -100};
-#endif
-
+    // Vec3 p1, p2, p3;
+    // p1 = (Vec3){0, 0, 0};
+    // p2 = (Vec3){-2, 0, 0};
+    // p3 = (Vec3){0, -1, 0};
     // win->scene.objects[win->scene.pos++] = new_rectangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
-    // win->scene.objects[win->scene.pos++] = new_triangle(p1, p2, p3, (Color){1, 0, 0}, Abs_);
-    win->scene.objects[win->scene.pos++] = new_cylinder(p3, 20.0, 40.0, (Vec3){1, 1, 0}, (Color){1, 0, 0}, Abs_);
-#endif
+    // win->scene.objects[win->scene.pos++] = new_cylinder(p3, 1.0, (Vec3){1, 1, 0}, (Color){1, 0, 0}, Abs_);
 }

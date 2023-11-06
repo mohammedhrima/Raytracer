@@ -61,5 +61,4 @@
         - textures
 
 
-
-        
++ lightning, parsing, cone

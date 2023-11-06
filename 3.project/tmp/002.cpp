@@ -1,4 +1,4 @@
-#include "../0.headers/SDL.h"
+#include "../../0.headers/SDL.h"
 #include <iostream>
 #include <unistd.h>
 #include <climits>
@@ -37,7 +37,7 @@
 #define ZERO .0001f
 #define PI 3.1415926535897932385
 
-#define FOCAL_LEN 10
+#define FOCAL_LEN 2
 
 // R  G  B
 // 24 16 8
@@ -54,7 +54,6 @@ typedef enum
 typedef enum
 {
     sphere_ = 22,
-    light_,
     plan_,
     triangle_,
     rectangle_,
@@ -71,17 +70,13 @@ typedef Vec3 Color;
 #define BACKGROUND(a) \
     (Color) { 1.0f - a * 0.8f, 1.0f - a * 0.6f, 1.0f }
 
-#define COLORS                                                                                                  \
-    (Color[])                                                                                                   \
-    {                                                                                                           \
-        {1, 1, 1},                                                                                              \
-            {0.42, 0.92, 0.80}, {0.47, 0.16, 0.92}, {0.42, 0.58, 0.92}, {0.92, 0.19, 0.15}, {0.42, 0.92, 0.72}, \
-            {0.42, 0.87, 0.92}, {0.92, 0.40, 0.30}, {0.61, 0.75, 0.24}, {0.83, 0.30, 0.92}, {0.23, 0.92, 0.08}, \
-            {0.30, 0.92, 0.64}, {0.39, 0.92, 0.63}, {0.42, 0.92, 0.80}, {0.47, 0.16, 0.92}, {0.42, 0.58, 0.92}, \
-            {0.92, 0.19, 0.15}, {0.42, 0.92, 0.72}, {0.42, 0.87, 0.92}, {0.92, 0.40, 0.30}, {0.61, 0.75, 0.24}, \
-            {0.83, 0.30, 0.92}, {0.23, 0.92, 0.08}, {0.25, 0.73, 0.51}, {0.62, 0.17, 0.95}, {0.45, 0.88, 0.29}, \
-            {0.76, 0.43, 0.67}, {0.33, 0.70, 0.12}, {0.91, 0.56, 0.78}, {0.08, 0.99, 0.37}, {0.71, 0.22, 0.64}, \
-            {0.49, 0.84, 0.53}, {0.14, 0.67, 0.98}, {0.27, 0.75, 0.41}, {0.30, 0.92, 0.64}, {0.39, 0.92, 0.63}, \
+#define COLORS                                                           \
+    (Color[])                                                            \
+    {                                                                    \
+        {0.30, 0.92, 0.64}, {0.39, 0.92, 0.63}, {0.42, 0.92, 0.80},      
+            {0.47, 0.16, 0.92}, {0.42, 0.58, 0.92}, {0.92, 0.19, 0.15},  
+            {0.42, 0.92, 0.72}, {0.42, 0.87, 0.92}, {0.92, 0.40, 0.30},  
+            {0.61, 0.75, 0.24}, {0.83, 0.30, 0.92}, { 0.23, 0.92, 0.08 } 
     }
 
 typedef struct
@@ -191,7 +186,9 @@ Win *new_window(int width, int height, char *title)
     win->scene.sum = (Color *)calloc(win->width * win->height, sizeof(Color));
     win->pixels = (uint32_t *)calloc(width * height, sizeof(uint32_t));
 
-    win->scene.camera = (Vec3){0, 0, FOCAL_LEN};
+    win->scene.camera = (Vec3){0, 0, -FOCAL_LEN};
+    win->scene.cam_dir = (Vec3){0, 0, FOCAL_LEN};
+    win->scene.upv = (Vec3){0, 1, 0};
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
@@ -395,27 +392,15 @@ Obj *new_cylinder(Vec3 center, float radius, float height, Vec3 normal, Color co
     return obj;
 }
 
-Obj *new_light(Vec3 center, float brightness)
-{
-    std::cout << "new cylinder" << std::endl;
-    Obj *obj = (Obj *)calloc(1, sizeof(Obj));
-    obj->type = light_;
-    obj->center = center;
-    obj->color = {1, 1, 1};
-    obj->mat = Abs_;
-    obj->brightness = brightness;
-    return obj;
-}
-
 Vec3 rotate(Vec3 u, int axes, float angle);
 void init(Win *win)
 {
 #if 1
     Scene *scene = &win->scene;
-    // memset(scene->sum, SDL_COLOR(0, 0, 0), win->width * win->height * sizeof(Color));
+    // memset(scene->sum, SDL_COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
     frame_index = 1;
 
-    scene->cam_dir = rotate((Vec3){0, 0, -FOCAL_LEN}, 'x', y_rotation);
+    scene->cam_dir = rotate((Vec3){0, 0, -1}, 'x', y_rotation);
     scene->cam_dir = rotate(scene->cam_dir, 'y', x_rotation);
 
     scene->w = -1 * unit_vector(scene->cam_dir); // step in z axis and z
@@ -564,7 +549,7 @@ void listen_on_events(Win *win, int &quit)
             {
                 // scene->upv = (Vec3){0, 1, 0};
                 frame_index = 1;
-                memset(win->scene.sum, SDL_COLOR(0, 0, 0), win->width * win->height * sizeof(Color));
+                memset(win->scene.sum, SDL_COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
                 init(win);
             }
             break;
@@ -574,7 +559,7 @@ void listen_on_events(Win *win, int &quit)
             else
                 translate(win, 2 * trans[BACKWARD - 1073741900].move);
             frame_index = 1;
-            memset(win->scene.sum, SDL_COLOR(0, 0, 0), win->width * win->height * sizeof(Color));
+            memset(win->scene.sum, SDL_COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
             init(win);
             break;
 #endif
@@ -586,6 +571,30 @@ void listen_on_events(Win *win, int &quit)
                 quit = true;
                 break;
 #if THREADS_LEN
+            case KEY_4:
+                win->scene.cam_dir = rotate(win->scene.cam_dir, 'y', .05);
+                frame_index = 1;
+                memset(win->scene.sum, SDL_COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
+                init(win);
+                break;
+            case KEY_6:
+                win->scene.cam_dir = rotate(win->scene.cam_dir, 'y', -.05);
+                frame_index = 1;
+                memset(win->scene.sum, SDL_COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
+                init(win);
+                break;
+            case KEY_8:
+                win->scene.cam_dir = rotate(win->scene.cam_dir, 'x', -.05);
+                frame_index = 1;
+                memset(win->scene.sum, SDL_COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
+                init(win);
+                break;
+            case KEY_2:
+                win->scene.cam_dir = rotate(win->scene.cam_dir, 'x', .05);
+                frame_index = 1;
+                memset(win->scene.sum, SDL_COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
+                init(win);
+                break;
             // case FORWARD:
             // case BACKWARD:
             case UP:
@@ -594,18 +603,18 @@ void listen_on_events(Win *win, int &quit)
             case RIGHT:
                 translate(win, trans[win->ev.key.keysym.sym - 1073741900].move);
                 frame_index = 1;
-                memset(win->scene.sum, SDL_COLOR(0, 0, 0), win->width * win->height * sizeof(Color));
+                memset(win->scene.sum, SDL_COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
                 init(win);
                 break;
             case RESET:
                 frame_index = 1;
-                memset(win->scene.sum, SDL_COLOR(0, 0, 0), win->width * win->height * sizeof(Color));
+                memset(win->scene.sum, SDL_COLOR(255, 255, 255), win->width * win->height * sizeof(Color));
                 x_rotation = 0;
                 y_rotation = 0;
 
-                scene->camera = (Vec3){0, 0, FOCAL_LEN};
-                // scene->cam_dir = (Vec3){0, 0, FOCAL_LEN};
-                // scene->upv = (Vec3){0, 1, 0};
+                scene->camera = (Vec3){0, 0, -FOCAL_LEN};
+                scene->cam_dir = (Vec3){0, 0, FOCAL_LEN};
+                scene->upv = (Vec3){0, 1, 0};
 
                 init(win);
                 std::cout << "Reset" << std::endl;
@@ -647,18 +656,6 @@ float hit_plan(Ray *ray, Vec3 normal, float d, float min, float max)
     float div = dot(ray->dir, normal);
     if (fabsf(div) <= ZERO)
         return -1.0;
-    t /= div;
-    if (t <= min || t >= max)
-        return -1.0;
-    return (t);
-}
-
-float hit_light(Ray *ray, Obj *light, float min, float max)
-{
-    float t = dot(light->center - ray->org, ray->dir);
-    float div = length_squared(ray->dir);
-    if (div < ZERO)
-        return 0;
     t /= div;
     if (t <= min || t >= max)
         return -1.0;
@@ -779,7 +776,7 @@ float hit_rectangle(Ray *ray, Vec3 p1, Vec3 p2, Vec3 p3, Vec3 normal, float min,
     return t;
 }
 
-Ray *get_new_ray(Obj *obj, Ray *ray, float closest)
+void get_new_ray(Obj *obj, Ray *ray, float closest)
 {
     Vec3 norm;
     float val;
@@ -788,7 +785,6 @@ Ray *get_new_ray(Obj *obj, Ray *ray, float closest)
     switch (obj->type)
     {
     case sphere_:
-    case light_:
         norm = unit_vector(ray->org - obj->center);
         break;
     case plan_:
@@ -799,7 +795,6 @@ Ray *get_new_ray(Obj *obj, Ray *ray, float closest)
         break;
     default:
         std::cerr << "Unkown object type" << std::endl;
-        // close_window(win);
         exit(1);
         break;
     }
@@ -839,15 +834,12 @@ Ray *get_new_ray(Obj *obj, Ray *ray, float closest)
         std::cerr << "Error in get_new_ray" << std::endl;
         exit(-1);
     }
-    return ray;
 }
-
-Color light_source = {-2, 0, 0};
 
 Color ray_color(Win *win, Ray *ray, int max_depth)
 {
     Scene *scene = &win->scene;
-    Color lightness = {};
+    Color light = {};
     Color darkness = {1, 1, 1};
 
     for (int depth = 0; depth < max_depth; depth++)
@@ -867,8 +859,6 @@ Color ray_color(Win *win, Ray *ray, int max_depth)
                 x = hit_triangle(ray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest);
             else if (scene->objects[i]->type == rectangle_)
                 x = hit_rectangle(ray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest);
-            else if (scene->objects[i]->type == light_)
-                x = hit_light(ray, scene->objects[i], ZERO, closest);
             if (x > 0.0)
             {
                 hit_index = i;
@@ -878,38 +868,19 @@ Color ray_color(Win *win, Ray *ray, int max_depth)
         if (hit_index != -1)
         {
             Obj *obj = scene->objects[hit_index];
-            Vec3 point = point_at(ray, closest);
-            Vec3 light_normal = light_source - point;
-            Vec3 objec_normal;
-            if (obj->type == sphere_)
-                objec_normal = unit_vector(point - obj->center);
-            else
-                objec_normal = unit_vector(obj->normal);
-            ray = get_new_ray(obj, ray, closest);
-#if 0
-            lightness = lightness + darkness * obj->brightness * obj->color;
+            get_new_ray(obj, ray, closest);
+            light = light + darkness * obj->brightness * obj->color;
             darkness = darkness * obj->color;
-#else
-            float d = dot(objec_normal, unit_vector(light_normal));
-            if (d < 0)
-                d = 0;
-            else
-                d = d / (0.1f * length(light_normal));
-
-            lightness = lightness + darkness * obj->color * d; // obj->brightness;
-            darkness = darkness * obj->color;
-#endif
         }
         else
         {
-            // lightness = lightness + darkness * BACKGROUND(0.5f * (unit_vector(ray->dir).y + 1.0f));
-            // lightness = lightness + darkness;
+            light = light + darkness * BACKGROUND(0.5f * (unit_vector(ray->dir).y + 1.0f));
             break;
         }
         if (darkness.x <= ZERO && darkness.y <= ZERO && darkness.z <= ZERO)
             break;
     }
-    return lightness;
+    return light;
 }
 
 void TraceRay(Win *win)
@@ -945,7 +916,7 @@ void TraceRay(Win *win)
 }
 
 // dimentions
-#define WIDTH 400
+#define WIDTH 300
 #define HEIGHT WIDTH
 
 void divideWindow(Win *win, int threadNum, int &x_start, int &y_start, int &w, int &h)
@@ -1016,37 +987,33 @@ void add_objects(Win *win)
     {
         Vec3 center;
         float radius;
+        Color color;
     } spheres[] = {
-        {(Vec3){-2, -3, +0}, 1.},
-        {(Vec3){+1.2, -3, +0.5}, 1.},
-        {(Vec3){+1, -1, -3.}, 0.},
-        {(Vec3){+0, +1, -3.}, 1.},
-        {(Vec3){+1, -1, -3.}, 1.},
+        {(Vec3){+0, +0, 0.5f}, 0.5f, COLORS[0]},
+        {(Vec3){+1, -1, -3}, 0, COLORS[5]},
+        {(Vec3){+0, +1, -3}, 1, COLORS[3]},
+        {(Vec3){+1, -1, -3}, 1, COLORS[5]},
     };
-#if 1
-    win->scene.objects[win->scene.pos++] = new_plan({+1, +0, +0}, 4, COLORS[win->scene.pos], Abs_); // left
-    // win->scene.objects[win->scene.pos++] = new_plan({-1, +0, +0}, 4, COLORS[win->scene.pos], Abs_);   // right
-    win->scene.objects[win->scene.pos++] = new_plan({+0, +1, +0}, 4, COLORS[win->scene.pos], Abs_); // down
-    // win->scene.objects[win->scene.pos++] = new_plan({+0, -1, +0}, 4, COLORS[win->scene.pos], Abs_);   // up
-    win->scene.objects[win->scene.pos++] = new_plan({+0, +0, 10}, 20, COLORS[win->scene.pos], Abs_); // forward
-    // win->scene.objects[win->scene.pos++] = new_plan({+0, +0, -10}, 20, COLORS[win->scene.pos], Abs_); // backward
-#endif
-    int i = 0;
-    while (spheres[i].radius > 0.0)
-    {
-        Vec3 center = spheres[i].center;
-        float radius = spheres[i].radius;
-        Color color = COLORS[win->scene.pos + 1];
-        win->scene.objects[win->scene.pos] = new_sphere(center, radius, color, Abs_);
-        win->scene.pos++;
-        i++;
-    }
-    // win->scene.objects[win->scene.pos] = (Obj *)calloc(1, sizeof(Obj));
-    // win->scene.objects[win->scene.pos]->type = light_;
-    // win->scene.objects[win->scene.pos]->center = {-2, 0, 0};
-    // win->scene.objects[win->scene.pos]->color = {1, 1, 1};
-    // win->scene.pos++;
-    // win->scene.objects[win->scene.pos - 1]->brightness = 4.0;
+    win->scene.objects[win->scene.pos++] = new_plan({+1, +0, +0}, 4, COLORS[1], Abs_);   // left
+    win->scene.objects[win->scene.pos++] = new_plan({-1, +0, +0}, 4, COLORS[2], Abs_);   // right
+    win->scene.objects[win->scene.pos++] = new_plan({+0, -1, +0}, 4, COLORS[3], Abs_);   // down
+    win->scene.objects[win->scene.pos++] = new_plan({+0, +1, +0}, 4, COLORS[4], Abs_);   // up
+    win->scene.objects[win->scene.pos++] = new_plan({+0, +0, 10}, 20, COLORS[5], Abs_);  // forward
+    win->scene.objects[win->scene.pos++] = new_plan({+0, +0, -10}, 20, COLORS[6], Abs_); // backward
+    win->scene.objects[win->scene.pos - 1]->brightness = 2.0;
+    win->scene.objects[win->scene.pos - 2]->brightness = 2.0;
+
+    // win->scene.objects[win->scene.pos++] = new_plan({0, -1 ,0}, 20, COLORS[0], Abs_);
+    // while (spheres[win->scene.pos].radius > 0)
+    // {
+    //     Vec3 center = spheres[win->scene.pos].center;
+    //     float radius = spheres[win->scene.pos].radius;
+    //     Color color = spheres[win->scene.pos].color;
+    //     win->scene.objects[win->scene.pos] = new_sphere(center, radius, color, Abs_);
+    //     // if (win->scene.pos == 0)
+    //     //     win->scene.objects[win->scene.pos]->brightness = 0.7;
+    //     win->scene.pos++;
+    // }
 }
 
 int main(void)
