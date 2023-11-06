@@ -395,12 +395,13 @@ Obj *new_cylinder(Vec3 center, float radius, float height, Vec3 normal, Color co
     return obj;
 }
 
-Obj *new_light(Vec3 center, float brightness)
+Obj *new_light(Vec3 center, Vec3 normal, float brightness)
 {
     std::cout << "new cylinder" << std::endl;
     Obj *obj = (Obj *)calloc(1, sizeof(Obj));
     obj->type = light_;
     obj->center = center;
+    obj->normal = unit_vector(normal);
     obj->color = {1, 1, 1};
     obj->mat = Abs_;
     obj->brightness = brightness;
@@ -653,16 +654,44 @@ float hit_plan(Ray *ray, Vec3 normal, float d, float min, float max)
     return (t);
 }
 
-float hit_light(Ray *ray, Obj *light, float min, float max)
+float hit_light(Ray *ray, Vec3 center, Vec3 normal, float min, float max)
 {
-    float t = dot(light->center - ray->org, ray->dir);
-    float div = length_squared(ray->dir);
-    if (div < ZERO)
-        return 0;
-    t /= div;
-    if (t <= min || t >= max)
-        return -1.0;
-    return (t);
+    // std::cout << "> " << dot(ray->dir, normal) << std::endl;
+    float x = hit_sphere(ray, center, 2, min, max);
+    // if(x != -1)
+    // {
+    //     Vec3 v = point_at(ray, x) - center;
+    //     // if(dot())
+    // }
+    return x;
+    // Vec3 oc = ray->org - center;
+    // // float d = dot(ray->dir, normal);
+    // // if (d > 0.0)
+    // //     return -1.0;
+
+    // float a = length_squared(ray->dir);
+    // float half_b = dot(oc, ray->dir);
+    // float c = length_squared(oc) - .1f * .1f;
+    // float delta = half_b * half_b - a * c;
+    // if (delta < 0)
+    //     return -1.0;
+    // delta = sqrtf(delta);
+    // float sol = (-half_b - delta) / a;
+    // if (sol <= min || sol >= max)
+    //     sol = (-half_b + delta) / a;
+    // if (sol <= min || sol >= max)
+    //     return -1.0;
+    // return (sol);
+
+    // float t = dot(light->center - ray->org, ray->dir);
+    // float div = length_squared(ray->dir);
+    // if (div < ZERO)
+    //     return -1.0;
+    // t /= div;
+    // // std::cout << dot(ray->dir, light->normal) << std::endl;
+    // if (t <= min || t >= max)
+    //     return -1.0;
+    // return (t);
 }
 
 float hit_cylinder(Ray *ray, Vec3 center, float radius, float height, Vec3 normal, float min, float max)
@@ -788,7 +817,7 @@ Ray *get_new_ray(Obj *obj, Ray *ray, float closest)
     switch (obj->type)
     {
     case sphere_:
-    case light_:
+        // case light_:
         norm = unit_vector(ray->org - obj->center);
         break;
     case plan_:
@@ -842,8 +871,6 @@ Ray *get_new_ray(Obj *obj, Ray *ray, float closest)
     return ray;
 }
 
-Color light_source = {-2, 0, 0};
-
 Color ray_color(Win *win, Ray *ray, int max_depth)
 {
     Scene *scene = &win->scene;
@@ -867,8 +894,7 @@ Color ray_color(Win *win, Ray *ray, int max_depth)
                 x = hit_triangle(ray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest);
             else if (scene->objects[i]->type == rectangle_)
                 x = hit_rectangle(ray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest);
-            else if (scene->objects[i]->type == light_)
-                x = hit_light(ray, scene->objects[i], ZERO, closest);
+
             if (x > 0.0)
             {
                 hit_index = i;
@@ -877,8 +903,55 @@ Color ray_color(Win *win, Ray *ray, int max_depth)
         }
         if (hit_index != -1)
         {
+
             Obj *obj = scene->objects[hit_index];
+#if 0
+            Color light_source = {0, 2, -3.0};
             Vec3 point = point_at(ray, closest);
+            // Vec3 light_normal = (Vec3){-1, 0, 0}; // light_source - point;
+            Vec3 objec_normal;
+            if (obj->type == sphere_)
+                objec_normal = unit_vector(obj->center - point);
+            else
+                objec_normal = unit_vector(obj->normal);
+            ray = get_new_ray(obj, ray, closest);
+
+            float d = dot(objec_normal, unit_vector(point - light_source));
+            if (d < 0)
+                d = ZERO;
+            else
+            {
+                d = length(point - light_source);
+                if (d < ZERO)
+                {
+                    std::cerr << "Error length" << std::endl;
+                    exit(0);
+                }
+                if(d > closest)
+                    d = closest;
+            }
+            lightness = lightness + darkness * obj->color * d;
+            darkness = darkness * obj->color;
+#elif 0
+            Vec3 org = ray->org;
+            ray = get_new_ray(obj, ray, closest);
+            float y = hit_light(ray, (Vec3){0, 0, 0}, (Vec3){-1, 0, 0}, ZERO, closest);
+            // if (dot(ray->org, (Vec3){-1, 0, 0}) < 10)
+            //     y = -1;
+
+            if (y != -1)
+            {
+                lightness = lightness + darkness * obj->color; // + darkness * 2 * obj->color;
+                darkness = darkness * obj->color;
+            }
+            else
+            {
+                lightness = lightness;
+                darkness = darkness * obj->color;
+            }
+#elif 1
+            Vec3 point = point_at(ray, closest);
+            Vec3 light_source = (Vec3){0, 0, 0};
             Vec3 light_normal = light_source - point;
             Vec3 objec_normal;
             if (obj->type == sphere_)
@@ -886,17 +959,19 @@ Color ray_color(Win *win, Ray *ray, int max_depth)
             else
                 objec_normal = unit_vector(obj->normal);
             ray = get_new_ray(obj, ray, closest);
-#if 0
-            lightness = lightness + darkness * obj->brightness * obj->color;
-            darkness = darkness * obj->color;
-#else
+
             float d = dot(objec_normal, unit_vector(light_normal));
             if (d < 0)
                 d = 0;
             else
                 d = d / (0.1f * length(light_normal));
 
-            lightness = lightness + darkness * obj->color * d; // obj->brightness;
+            lightness = lightness + darkness * obj->color * d;
+            darkness = darkness * obj->color;
+
+#else
+            ray = get_new_ray(obj, ray, closest);
+            lightness = lightness + darkness * obj->brightness * obj->color;
             darkness = darkness * obj->color;
 #endif
         }
@@ -1017,11 +1092,11 @@ void add_objects(Win *win)
         Vec3 center;
         float radius;
     } spheres[] = {
-        {(Vec3){-2, -3, +0}, 1.},
-        {(Vec3){+1.2, -3, +0.5}, 1.},
-        {(Vec3){+1, -1, -3.}, 0.},
-        {(Vec3){+0, +1, -3.}, 1.},
-        {(Vec3){+1, -1, -3.}, 1.},
+        {(Vec3){-3, 0, -3.0}, 1.},
+        {(Vec3){+1, -1, -3.0}, 0.},
+        {(Vec3){+1, -3, +0.5}, 1.},
+        {(Vec3){+0, +1, -3.0}, 1.},
+        {(Vec3){+1, -1, -3.0}, 1.},
     };
 #if 1
     win->scene.objects[win->scene.pos++] = new_plan({+1, +0, +0}, 4, COLORS[win->scene.pos], Abs_); // left
@@ -1041,12 +1116,15 @@ void add_objects(Win *win)
         win->scene.pos++;
         i++;
     }
-    // win->scene.objects[win->scene.pos] = (Obj *)calloc(1, sizeof(Obj));
+#if 0
+    win->scene.objects[win->scene.pos++] = new_sphere((Vec3){0, 0, 0}, .3f, (Color){1, 1, 1}, Abs_);
+    win->scene.objects[win->scene.pos - 1]->brightness = 140.0;
+    // win->scene.objects[win->scene.pos++] = new_light((Vec3){0, 0, -3}, (Vec3){-1, 0, 0}, 140);
+#endif
     // win->scene.objects[win->scene.pos]->type = light_;
     // win->scene.objects[win->scene.pos]->center = {-2, 0, 0};
     // win->scene.objects[win->scene.pos]->color = {1, 1, 1};
     // win->scene.pos++;
-    // win->scene.objects[win->scene.pos - 1]->brightness = 4.0;
 }
 
 int main(void)
