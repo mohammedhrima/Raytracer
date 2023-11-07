@@ -1,16 +1,18 @@
-+ create a cylinder, Cone, Hyperboloid, Paraboloid !!!
-+ implement light from one point
++ create:
+    - sphere
+    - cylinder
+    - Cone
+    - Hyperboloid
+    - Paraboloid !!!
+
++ lightning, parsing, cone
 + add textures
 + build simple arm
-+ “Rasterization"
 
++ “Rasterization"
 + detect closest objects
 + create a mini solid works
 + start a mini game (maybe a mini pacman)
-
-+ optimize the code
-+ slow motion move
-+ black hole (absorb light and send it another dimention)
 
 + 42 subject:
     - check memory leaks
@@ -53,6 +55,8 @@
             h    : height
             RGB  : color
     - Error messaging
+        + color range
+        + normal range
     - Bonus:
         - specular reflection
         - color disruption ?
@@ -61,4 +65,3 @@
         - textures
 
 
-+ lightning, parsing, cone

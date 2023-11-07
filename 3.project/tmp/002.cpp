@@ -70,13 +70,17 @@ typedef Vec3 Color;
 #define BACKGROUND(a) \
     (Color) { 1.0f - a * 0.8f, 1.0f - a * 0.6f, 1.0f }
 
-#define COLORS                                                           \
-    (Color[])                                                            \
-    {                                                                    \
-        {0.30, 0.92, 0.64}, {0.39, 0.92, 0.63}, {0.42, 0.92, 0.80},      
-            {0.47, 0.16, 0.92}, {0.42, 0.58, 0.92}, {0.92, 0.19, 0.15},  
-            {0.42, 0.92, 0.72}, {0.42, 0.87, 0.92}, {0.92, 0.40, 0.30},  
-            {0.61, 0.75, 0.24}, {0.83, 0.30, 0.92}, { 0.23, 0.92, 0.08 } 
+#define COLORS                                                                                                  \
+    (Color[])                                                                                                   \
+    {                                                                                                           \
+        {1, 1, 1},                                                                                              \
+            {0.42, 0.92, 0.80}, {0.47, 0.16, 0.92}, {0.42, 0.58, 0.92}, {0.92, 0.19, 0.15}, {0.42, 0.92, 0.72}, \
+            {0.42, 0.87, 0.92}, {0.92, 0.40, 0.30}, {0.61, 0.75, 0.24}, {0.83, 0.30, 0.92}, {0.23, 0.92, 0.08}, \
+            {0.30, 0.92, 0.64}, {0.39, 0.92, 0.63}, {0.42, 0.92, 0.80}, {0.47, 0.16, 0.92}, {0.42, 0.58, 0.92}, \
+            {0.92, 0.19, 0.15}, {0.42, 0.92, 0.72}, {0.42, 0.87, 0.92}, {0.92, 0.40, 0.30}, {0.61, 0.75, 0.24}, \
+            {0.83, 0.30, 0.92}, {0.23, 0.92, 0.08}, {0.25, 0.73, 0.51}, {0.62, 0.17, 0.95}, {0.45, 0.88, 0.29}, \
+            {0.76, 0.43, 0.67}, {0.33, 0.70, 0.12}, {0.91, 0.56, 0.78}, {0.08, 0.99, 0.37}, {0.71, 0.22, 0.64}, \
+            {0.49, 0.84, 0.53}, {0.14, 0.67, 0.98}, {0.27, 0.75, 0.41}, {0.30, 0.92, 0.64}, {0.39, 0.92, 0.63}, \
     }
 
 typedef struct
@@ -987,33 +991,40 @@ void add_objects(Win *win)
     {
         Vec3 center;
         float radius;
-        Color color;
     } spheres[] = {
-        {(Vec3){+0, +0, 0.5f}, 0.5f, COLORS[0]},
-        {(Vec3){+1, -1, -3}, 0, COLORS[5]},
-        {(Vec3){+0, +1, -3}, 1, COLORS[3]},
-        {(Vec3){+1, -1, -3}, 1, COLORS[5]},
+        {(Vec3){-2, 0, -3.0}, 1.},
+        {(Vec3){+1, -1, -3.0}, 0.},
+        {(Vec3){+1, -3, +0.5}, 1.},
+        {(Vec3){+0, +1, -3.0}, 1.},
+        {(Vec3){+1, -1, -3.0}, 1.},
     };
-    win->scene.objects[win->scene.pos++] = new_plan({+1, +0, +0}, 4, COLORS[1], Abs_);   // left
-    win->scene.objects[win->scene.pos++] = new_plan({-1, +0, +0}, 4, COLORS[2], Abs_);   // right
-    win->scene.objects[win->scene.pos++] = new_plan({+0, -1, +0}, 4, COLORS[3], Abs_);   // down
-    win->scene.objects[win->scene.pos++] = new_plan({+0, +1, +0}, 4, COLORS[4], Abs_);   // up
-    win->scene.objects[win->scene.pos++] = new_plan({+0, +0, 10}, 20, COLORS[5], Abs_);  // forward
-    win->scene.objects[win->scene.pos++] = new_plan({+0, +0, -10}, 20, COLORS[6], Abs_); // backward
+#if 1
+    win->scene.objects[win->scene.pos++] = new_plan({+1, +0, +0}, 4, COLORS[win->scene.pos], Abs_); // left
+    // win->scene.objects[win->scene.pos++] = new_plan({-1, +0, +0}, 4, COLORS[win->scene.pos], Abs_);   // right
+    win->scene.objects[win->scene.pos++] = new_plan({+0, +1, +0}, 4, COLORS[win->scene.pos], Abs_); // down
+    // win->scene.objects[win->scene.pos++] = new_plan({+0, -1, +0}, 4, COLORS[win->scene.pos], Abs_);   // up
+    win->scene.objects[win->scene.pos++] = new_plan({+0, +0, 10}, 20, COLORS[win->scene.pos], Abs_); // forward
+    // win->scene.objects[win->scene.pos++] = new_plan({+0, +0, -10}, 20, COLORS[win->scene.pos], Abs_); // backward
+#endif
+    int i = 0;
+    while (spheres[i].radius > 0.0)
+    {
+        Vec3 center = spheres[i].center;
+        float radius = spheres[i].radius;
+        Color color = COLORS[win->scene.pos + 1];
+        win->scene.objects[win->scene.pos] = new_sphere(center, radius, color, Abs_);
+        win->scene.pos++;
+        i++;
+    }
+#if 1
+    win->scene.objects[win->scene.pos++] = new_sphere((Vec3){5, 5, 0}, 3, (Color){1, 1, 1}, Abs_);
     win->scene.objects[win->scene.pos - 1]->brightness = 2.0;
-    win->scene.objects[win->scene.pos - 2]->brightness = 2.0;
-
-    // win->scene.objects[win->scene.pos++] = new_plan({0, -1 ,0}, 20, COLORS[0], Abs_);
-    // while (spheres[win->scene.pos].radius > 0)
-    // {
-    //     Vec3 center = spheres[win->scene.pos].center;
-    //     float radius = spheres[win->scene.pos].radius;
-    //     Color color = spheres[win->scene.pos].color;
-    //     win->scene.objects[win->scene.pos] = new_sphere(center, radius, color, Abs_);
-    //     // if (win->scene.pos == 0)
-    //     //     win->scene.objects[win->scene.pos]->brightness = 0.7;
-    //     win->scene.pos++;
-    // }
+    // win->scene.objects[win->scene.pos++] = new_light((Vec3){0, 0, -3}, (Vec3){-1, 0, 0}, 140);
+#endif
+    // win->scene.objects[win->scene.pos]->type = light_;
+    // win->scene.objects[win->scene.pos]->center = {-2, 0, 0};
+    // win->scene.objects[win->scene.pos]->color = {1, 1, 1};
+    // win->scene.pos++;
 }
 
 int main(void)
