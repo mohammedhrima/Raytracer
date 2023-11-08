@@ -1,10 +1,11 @@
 + create:
-    - sphere
-    - cylinder
-    - Cone
+    + sphere
+    + cylinder
+    + Cone
     - Hyperboloid
     - Paraboloid !!!
 
++ rotate obj form angle and unit axis https://en.wikipedia.org/wiki/Rotation_matrix#Axis_and_angle
 + lightning, parsing, cone
 + add textures
 + build simple arm
@@ -64,4 +65,4 @@
         - Cone, Hyperboloid, Paraboloid
         - textures
 
-
++ check forbiden function calloc ...

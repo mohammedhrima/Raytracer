@@ -3,6 +3,7 @@
 **/.vscode
 **/*.ppm
 **/*.o
+**/*.a
 **/minirt
 **/.DS_Store
 .DS_Store

@@ -7,39 +7,40 @@ void add_objects(Win *win)
         Vec3 center;
         float radius;
     } spheres[] = {
-        {(Vec3){-2, 0, -3.0}, 1.},
-        {(Vec3){+1, -1, -3.0}, 0.},
-        {(Vec3){+1, -3, +0.5}, 1.},
+        {(Vec3){-2.5, -2.5, 0.0}, .1},
+        {(Vec3){1.4, 1.4, -3.0}, 5.},
+        {(Vec3){+1, -3, +0.5}, 0.},
         {(Vec3){+0, +1, -3.0}, 1.},
         {(Vec3){+1, -1, -3.0}, 1.},
     };
-#if 0
-    win->scene.objects[win->scene.pos++] = new_plan({+1, +0, +0}, 10, COLORS[win->scene.pos], Abs_); // left
+#if 1
+    // win->scene.objects[win->scene.pos++] = new_plan({+1, +0, +0}, 10, COLORS[win->scene.pos], Abs_); // left
     // win->scene.objects[win->scene.pos++] = new_plan({-1, +0, +0}, 4, COLORS[win->scene.pos], Abs_);   // right
-    win->scene.objects[win->scene.pos++] = new_plan({+0, +1, +0}, 10, COLORS[win->scene.pos], Abs_); // down
+    // win->scene.objects[win->scene.pos++] = new_plan({+0, +1, +0}, 10, COLORS[win->scene.pos], Abs_); // down
     // win->scene.objects[win->scene.pos++] = new_plan({+0, -1, +0}, 4, COLORS[win->scene.pos], Abs_);   // up
-    win->scene.objects[win->scene.pos++] = new_plan({+0, +0, 10}, 20, COLORS[win->scene.pos], Abs_); // forward
+    // win->scene.objects[win->scene.pos++] = new_plan({+0, +0, 10}, 20, COLORS[win->scene.pos], Abs_); // forward
     // win->scene.objects[win->scene.pos++] = new_plan({+0, +0, -10}, 20, COLORS[win->scene.pos], Abs_); // backward
 #endif
 
-#if 0
+#if 1
     int i = 0;
     while (spheres[i].radius > 0.0)
     {
         Vec3 center = spheres[i].center;
         float radius = spheres[i].radius;
-        Color color = COLORS[win->scene.pos + 1];
+        Color color = COLORS[win->scene.pos ];
         win->scene.objects[win->scene.pos] = new_sphere(center, radius, color, Abs_);
         win->scene.pos++;
         i++;
     }
+    // win->scene.objects[win->scene.pos++] = new_cone((Vec3){0, 0, -3}, 2, 2, (Vec3){0, 1, 0}, COLORS[win->scene.pos ], Abs_);
+#else
 #endif
-    // win->scene.objects[win->scene.pos++] = new_sphere((Vec3){0, 0, -1}, 2, COLORS[win->scene.pos], Abs_);
+    // win->scene.objects[win->scene.pos++] = new_sphere((Vec3){-10, -2, 0}, 2, (Color){1, 0, 0}, Abs_);
     // win->scene.objects[win->scene.pos - 1]->lightness = 1.0;
     // win->scene.objects[win->scene.pos++] = new_sphere((Vec3){-4, 0, -1}, 2, COLORS[win->scene.pos], Abs_);
     // win->scene.objects[win->scene.pos - 1]->lightness = 150.0;
-    // win->scene.objects[win->scene.pos++] = new_cone((Vec3){0, 0, -5}, 2, 2, (Vec3){0, 1, 0}, (Color){1, 0, 0}, Abs_);
-    win->scene.objects[win->scene.pos++] = new_cylinder((Vec3){0, 0, -5}, 2, 20, (Vec3){0, 1, 0}, (Color){1, 0, 0}, Abs_);
+    // win->scene.objects[win->scene.pos++] = new_cylinder((Vec3){0, 0, -5}, 2, 20, (Vec3){0, 1, 0}, (Color){1, 0, 0}, Abs_);
 }
 
 // dimentions

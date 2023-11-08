@@ -19,6 +19,7 @@ typedef struct s_elm
     float height;
 } t_elem;
 
+
 int get_file(int argc, char **argv)
 {
     if (argc != 2 || ft_strlen(argv[1]) < 3 || ft_strcmp(argv[1] + ft_strlen(argv[1]) - 3, ".rt"))
@@ -135,11 +136,23 @@ t_vec3 parse_normal(char *str, int *i)
     return normal;
 }
 
-t_elem parse_ambient_light(char *str, int i)
+t_elem parse_ambient_light(char *elems_str, char *str, int i)
 {
     t_elem elem = (t_elem){0};
+    if (elems_str[str[i]])
+    {
+        free(elems_str);
+        printf("Error: ambient light already exists\n");
+        exit(1);
+    }
+    elems_str[str[i]] = 1;
     elem.id = str[i++];
     elem.ratio = parse_number(str, &i);
+    if (!in_range(elem.ratio, 0, 1))
+    {
+        printf("Error: ambient light ratio should have value in range [0,1]\n");
+        exit(1);
+    }
     elem.color = parse_color(str, &i);
     if (str[i])
     {
@@ -195,6 +208,11 @@ t_elem parse_light(char *elems_str, char *str, int i)
     i = skip(str, ',', i);
     elem.point.z = parse_number(str, &i);
     elem.ratio = parse_number(str, &i);
+    if (!in_range(elem.ratio, 0, 1))
+    {
+        printf("Error: light brightness ratio should have value in range [0,1]\n");
+        exit(1);
+    }
     elem.color = parse_color(str, &i);
     if (str[i])
     {
@@ -290,7 +308,7 @@ t_elem parse_line(char *str, char *elems_str)
         while (str[i] && ft_isspace(str[i]))
             i++;
         if (str[i] == 'A')
-            return parse_ambient_light(str, i);
+            return parse_ambient_light(elems_str, str, i);
         else if (str[i] == 'C')
             return parse_camera(elems_str, str, i);
         else if (str[i] == 'L')

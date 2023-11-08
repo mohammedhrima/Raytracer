@@ -6,13 +6,13 @@
 /*   By: mhrima <mhrima@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/10/29 10:13:59 by mhrima            #+#    #+#             */
-/*   Updated: 2023/11/08 06:41:25 by mhrima           ###   ########.fr       */
+/*   Updated: 2023/11/08 04:04:00 by mhrima           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #ifndef HEADER_H
 # define HEADER_H
-#include "Libft/libft.h"
+
 # include <float.h>
 # include <limits.h>
 # include <math.h>
@@ -27,7 +27,7 @@
 # define WIDTH 400
 # define HEIGHT WIDTH/1.5f
 # define ESC 65307
-# define FOCAL_LEN 10
+// # define FOCAL_LEN 10
 # define RAYS_PER_PIXEL 25
 # define PI 3.1415926535897932385
 
@@ -54,6 +54,8 @@ typedef struct s_ray
 	t_vec3		org;
 }				t_ray;
 
+
+
 typedef struct s_obj
 {
 	t_type		type;
@@ -67,20 +69,13 @@ typedef struct s_obj
 
 typedef struct s_scene
 {
-	float		focal_len;
 	t_vec3		light;
-	float		light_ratio;
-	t_vec3		light_color;
-	float		ambient_light_ratio;
-	t_vec3		ambient_light_color;
 	t_vec3		camera;
 	t_vec3		cam_dir;
-	float		fov;
 	t_vec3		pixel_u;
 	t_vec3		pixel_v;
 	t_vec3		first_pixel;
 	t_obj		*objects;
-	int			obj_len;
 	int			pos;
 	t_vec3		screen_u;
 	t_vec3		screen_v;
@@ -130,6 +125,7 @@ t_vec3			point_at(t_ray *ray, float t);
 t_color			ray_color(t_win *win, t_ray ray);
 float			degrees_to_radians(float degrees);
 float			random_float(float min, float max);
+void			add_objects(t_win *win);
 void			set_pixels(t_win *win);
 void			close_window(t_win *win);
 int				listen_on_key(int code, t_win *win);

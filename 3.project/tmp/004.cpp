@@ -789,6 +789,19 @@ float hit_cylinder(Ray *ray, Vec3 center, float radius, float height, Vec3 norma
     return x;
 }
 
+/*
+    float v = square(e->radius) / square(e->height);
+
+    float a = square(vector_dot(ray_dir, xaxis)) + square(vector_dot(ray_dir, yaxis))
+                - v * square(vector_dot(ray_dir, e->axis));
+
+    float b = 2 * (vector_dot(o, xaxis) * vector_dot(ray_dir, xaxis) +
+                   vector_dot(o, yaxis) * vector_dot(ray_dir, yaxis))
+              - (v * 2 * vector_dot(o, e->axis) * vector_dot(ray_dir, e->axis) - (2 * e->radius * e->radius / e->height) * vector_dot(ray_dir, e->axis));
+
+    float c =  square(vector_dot(o, xaxis)) + square(vector_dot(o, yaxis)) -e->radius * e->radius
+            - (v * square(vector_dot(o, e->axis)) - (2 * e->radius * e->radius / e->height) * vector_dot(o, e->axis));
+*/
 float hit_cone(Ray *ray, Vec3 center, Vec3 normal, float radius, float height, float min, float max)
 {
     Vec3 ran = {0, 1, 0};
@@ -833,6 +846,7 @@ float hit_cone(Ray *ray, Vec3 center, Vec3 normal, float radius, float height, f
         x = x2;
 
 #if 0
+
     Vec3 c1 = center + (height / 2) * normal;
     float d1 = hit_plan(ray, normal, -dot(c1, normal), min, max);
     if (d1 > 0)
@@ -856,13 +870,12 @@ float hit_cone(Ray *ray, Vec3 center, Vec3 normal, float radius, float height, f
     return x;
 }
 
-Ray get_new_ray(Obj *obj, Ray *ray, float closest)
+Ray *get_new_ray(Obj *obj, Ray *ray, float closest)
 {
     Vec3 norm;
     float val;
-    Ray nray;
 
-    nray.org = point_at(ray, closest);
+    ray->org = point_at(ray, closest);
     switch (obj->type)
     {
     case sphere_:
@@ -886,7 +899,7 @@ Ray get_new_ray(Obj *obj, Ray *ray, float closest)
     if (obj->mat == Refl_)
     {
         val = -2 * dot(ray->dir, norm);
-        nray.dir = ray->dir + (val * norm);
+        ray->dir = ray->dir + (val * norm);
     }
     else if (obj->mat == Refr_)
     {
@@ -897,150 +910,61 @@ Ray get_new_ray(Obj *obj, Ray *ray, float closest)
         if (refraction_ratio * sin_theta > 1.0) // Reflect
         {
             val = -2 * dot(ray->dir, norm);
-            nray.dir = ray->dir + (val * norm);
+            ray->dir = ray->dir + (val * norm);
         }
         else // Refract
         {
             Vec3 ray_dir = unit_vector(ray->dir);
             Vec3 Perp = refraction_ratio * (ray_dir - (dot(ray_dir, norm) * norm));
             Vec3 Para = sqrt(1 - pow(length(Perp), 2)) * (-1 * norm);
-            nray.dir = Perp + Para;
+            ray->dir = Perp + Para;
         }
     }
     else if (obj->mat == Abs_)
-        nray.dir = norm + random_unit_vector();
+        ray->dir = norm + random_unit_vector();
     else
     {
         std::cerr << "Error in get_new_ray" << std::endl;
         exit(-1);
     }
-    return nray;
+    return ray;
 }
-
-Vec3 light = {10, 10, 10};
-// Vec3 light_dir = {-1, -1, 0};
 
 Color ray_color(Win *win, Ray *ray, int max_depth)
 {
     Scene *scene = &win->scene;
-    Color color = {0, 0, 0};
-    if (max_depth == 0)
-        return color;
-    // Color color = (Vec3){203.f / 255.999, 226.f / 255.999, 255.f / 255.999};
+    // Color color = {0.5, 0.5, 0.5};
+    Color color = (Vec3){203.f / 255.999, 226.f / 255.999, 255.f / 255.999};
 
-    float closest = FLT_MAX;
-    int hit_index = -1;
-    float x = 0.0;
-    for (int i = 0; i < scene->pos; i++)
+    //  for (int depth = 0; depth < 2; depth++)
     {
-        if (scene->objects[i]->type == plan_)
-            x = hit_plan(ray, scene->objects[i]->normal, scene->objects[i]->d, ZERO, closest);
-        if (scene->objects[i]->type == sphere_)
-            x = hit_sphere(ray, scene->objects[i]->center, scene->objects[i]->radius, ZERO, closest);
-        else if (scene->objects[i]->type == cylinder_)
-            x = hit_cylinder(ray, scene->objects[i]->center, scene->objects[i]->radius, scene->objects[i]->height, scene->objects[i]->normal, ZERO, closest);
-        else if (scene->objects[i]->type == triangle_)
-            x = hit_triangle(ray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest);
-        else if (scene->objects[i]->type == rectangle_)
-            x = hit_rectangle(ray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest);
-        else if (scene->objects[i]->type == cone_)
-            x = hit_cone(ray, scene->objects[i]->center, scene->objects[i]->normal, scene->objects[i]->radius, scene->objects[i]->height, ZERO, closest);
-        if (x > 0.0)
-        {
-            hit_index = i;
-            closest = x;
-        }
-    }
-    if (hit_index != -1)
-    {
-#if 0
-        Ray nray = get_new_ray(scene->objects[hit_index], ray, closest);
-        float closest2 = FLT_MAX;
-        int hit_index2 = -1;
+        float closest = FLT_MAX;
+        int hit_index = -1;
+        float x = 0.0;
         for (int i = 0; i < scene->pos; i++)
         {
             if (scene->objects[i]->type == plan_)
-                x = hit_plan(&nray, scene->objects[i]->normal, scene->objects[i]->d, ZERO, closest2);
+                x = hit_plan(ray, scene->objects[i]->normal, scene->objects[i]->d, ZERO, closest);
             if (scene->objects[i]->type == sphere_)
-                x = hit_sphere(&nray, scene->objects[i]->center, scene->objects[i]->radius, ZERO, closest2);
+                x = hit_sphere(ray, scene->objects[i]->center, scene->objects[i]->radius, ZERO, closest);
             else if (scene->objects[i]->type == cylinder_)
-                x = hit_cylinder(&nray, scene->objects[i]->center, scene->objects[i]->radius, scene->objects[i]->height, scene->objects[i]->normal, ZERO, closest2);
+                x = hit_cylinder(ray, scene->objects[i]->center, scene->objects[i]->radius, scene->objects[i]->height, scene->objects[i]->normal, ZERO, closest);
             else if (scene->objects[i]->type == triangle_)
-                x = hit_triangle(&nray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest2);
+                x = hit_triangle(ray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest);
             else if (scene->objects[i]->type == rectangle_)
-                x = hit_rectangle(&nray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest2);
+                x = hit_rectangle(ray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest);
             else if (scene->objects[i]->type == cone_)
-                x = hit_cone(&nray, scene->objects[i]->center, scene->objects[i]->normal, scene->objects[i]->radius, scene->objects[i]->height, ZERO, closest2);
+                x = hit_cone(ray, scene->objects[i]->center, scene->objects[i]->normal, scene->objects[i]->radius, scene->objects[i]->height, ZERO, closest);
             if (x > 0.0)
             {
-                hit_index2 = i;
-                closest2 = x;
+                hit_index = i;
+                closest = x;
             }
         }
-        if (hit_index2 != -1)
+        if (hit_index != -1)
         {
-            Vec3 from = point_at(ray, closest);
-            Vec3 to = point_at(&nray, closest2);
-            float light_len = length(from - light);
-            float obj_len = length(from - to);
-            if (obj_len < light_len)
-                color = color * scene->objects[hit_index2]->color;
-            // return (Color){1,0,0};
-            else
-            {
-                if (scene->objects[hit_index]->type == sphere_ || scene->objects[hit_index]->type == cone_)
-                {
-                    Vec3 normal = unit_vector(point_at(ray, closest) - scene->objects[hit_index]->center);
-                    Vec3 light_dir = unit_vector(light - point_at(ray, closest));
-                    float d = fmax(dot(normal, light_dir), 0);
-                    color = color + d * (Vec3){1, 1, 1};
-                }
-                if (scene->objects[hit_index]->type == plan_)
-                {
-                    Vec3 normal = scene->objects[hit_index]->normal;
-                    Vec3 light_dir = unit_vector(light - point_at(ray, closest));
-                    float d = fmax(dot(normal, light_dir), 0);
-                    color = color + d * (Vec3){1, 1, 1};
-                }
-            }
             color = color * scene->objects[hit_index]->color;
         }
-        else
-        {
-            // float distance = dot(nray.org - point_at(ray->org, closest), light - point_at(ray, closest));
-            if (scene->objects[hit_index]->type == sphere_ || scene->objects[hit_index]->type == cone_)
-            {
-                Vec3 normal = unit_vector(point_at(ray, closest) - scene->objects[hit_index]->center);
-                Vec3 light_dir = unit_vector(light - point_at(ray, closest));
-                float d = fmax(dot(normal, light_dir), 0);
-                color = color + d * (Vec3){1, 1, 1};
-            }
-            if (scene->objects[hit_index]->type == plan_)
-            {
-                Vec3 normal = scene->objects[hit_index]->normal;
-                Vec3 light_dir = unit_vector(light - point_at(ray, closest));
-                float d = fmax(dot(normal, light_dir), 0);
-                color = color + d * (Vec3){1, 1, 1};
-            }
-            color = color * scene->objects[hit_index]->color;
-        }
-#else
-        if (scene->objects[hit_index]->type == sphere_ || scene->objects[hit_index]->type == cone_)
-        {
-            Vec3 normal = unit_vector(point_at(ray, closest) - scene->objects[hit_index]->center);
-            Vec3 light_dir = unit_vector(light - point_at(ray, closest));
-            float d = fmax(dot(normal, light_dir), 0);
-            color = color + d * (Vec3){1, 1, 1};
-        }
-        if (scene->objects[hit_index]->type == plan_)
-        {
-            Vec3 normal = scene->objects[hit_index]->normal;
-            Vec3 light_dir = unit_vector(light - point_at(ray, closest));
-            float d = fmax(dot(normal, light_dir), 0);
-            color = color + d * (Vec3){1, 1, 1};
-        }
-        color = color * scene->objects[hit_index]->color;
-#endif
     }
     return color;
 }
@@ -1061,7 +985,7 @@ void TraceRay(Win *win)
                 Vec3 pixel_center = scene->first_pixel + ((float)w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
                 Vec3 dir = pixel_center - scene->camera;
                 Ray ray = (Ray){.org = scene->camera, .dir = dir};
-                pixel = pixel + ray_color(win, &ray, 2);
+                pixel = pixel + ray_color(win, &ray, 25);
             }
             pixel = pixel / rays_per_pixel;
             if (pixel.x > 1)
@@ -1097,7 +1021,7 @@ void *TraceRay(void *arg)
                 Vec3 pixel_center = scene->first_pixel + ((float)w + random_float(0, 1)) * scene->pixel_u + ((float)h + random_float(0, 1)) * scene->pixel_v;
                 Vec3 dir = pixel_center - scene->camera;
                 Ray ray = (Ray){.org = scene->camera, .dir = dir};
-                Color pixel = ray_color(win, &ray, 2);
+                Color pixel = ray_color(win, &ray, 1);
                 win->scene.sum[h * win->width + w] = win->scene.sum[h * win->width + w] + pixel;
                 pixel = win->scene.sum[h * win->width + w] / (float)frame_index;
                 if (pixel.x > 1)
@@ -1113,3 +1037,105 @@ void *TraceRay(void *arg)
     }
 }
 #endif
+
+void add_objects(Win *win)
+{
+    struct
+    {
+        Vec3 center;
+        float radius;
+    } spheres[] = {
+        {(Vec3){-2, 0, -3.0}, 1.},
+        {(Vec3){+1, -1, -3.0}, 0.},
+        {(Vec3){+1, -3, +0.5}, 1.},
+        {(Vec3){+0, +1, -3.0}, 1.},
+        {(Vec3){+1, -1, -3.0}, 1.},
+    };
+#if 0
+    win->scene.objects[win->scene.pos++] = new_plan({+1, +0, +0}, 10, COLORS[win->scene.pos], Abs_); // left
+    // win->scene.objects[win->scene.pos++] = new_plan({-1, +0, +0}, 4, COLORS[win->scene.pos], Abs_);   // right
+    win->scene.objects[win->scene.pos++] = new_plan({+0, +1, +0}, 10, COLORS[win->scene.pos], Abs_); // down
+    // win->scene.objects[win->scene.pos++] = new_plan({+0, -1, +0}, 4, COLORS[win->scene.pos], Abs_);   // up
+    win->scene.objects[win->scene.pos++] = new_plan({+0, +0, 10}, 20, COLORS[win->scene.pos], Abs_); // forward
+    // win->scene.objects[win->scene.pos++] = new_plan({+0, +0, -10}, 20, COLORS[win->scene.pos], Abs_); // backward
+#endif
+
+#if 0
+    int i = 0;
+    while (spheres[i].radius > 0.0)
+    {
+        Vec3 center = spheres[i].center;
+        float radius = spheres[i].radius;
+        Color color = COLORS[win->scene.pos + 1];
+        win->scene.objects[win->scene.pos] = new_sphere(center, radius, color, Abs_);
+        win->scene.pos++;
+        i++;
+    }
+#else
+    win->scene.objects[win->scene.pos++] = new_cone((Vec3){0, 0, -5}, 2, 2, (Vec3){0, 1, 0}, (Color){1, 0, 0}, Abs_);
+#endif
+    // win->scene.objects[win->scene.pos++] = new_sphere((Vec3){0, 0, -1}, 2, COLORS[win->scene.pos], Abs_);
+    // win->scene.objects[win->scene.pos - 1]->lightness = 1.0;
+    // win->scene.objects[win->scene.pos++] = new_sphere((Vec3){-4, 0, -1}, 2, COLORS[win->scene.pos], Abs_);
+    // win->scene.objects[win->scene.pos - 1]->lightness = 150.0;
+    // win->scene.objects[win->scene.pos++] = new_cylinder((Vec3){0, 0, -5}, 2, 20, (Vec3){0, 1, 0}, (Color){1, 0, 0}, Abs_);
+}
+
+// dimentions
+#define WIDTH 400
+#define HEIGHT WIDTH
+
+int main(void)
+{
+    Win *win = new_window(WIDTH, HEIGHT, (char *)"Mini Raytracer");
+    win->scene.objects = (Obj **)calloc(100, sizeof(Obj **));
+
+    time_t time_start, time_end;
+    init(win);
+    add_objects(win);
+
+#if THREADS_LEN
+    int cols = ceil(sqrt(THREADS_LEN));
+    int rows = ceil((float)THREADS_LEN / cols);
+    for (int i = 0; i < THREADS_LEN; i++)
+        win->thread_finished[i] = 1;
+
+    Multi *multis[THREADS_LEN];
+    for (int i = 0; i < THREADS_LEN; i++)
+    {
+        multis[i] = new_multi(win, i, cols, rows);
+        pthread_create(&multis[i]->thread, nullptr, TraceRay, multis[i]);
+    }
+#else
+    TraceRay(win);
+#endif
+    int quit = 0;
+    while (!quit)
+    {
+        listen_on_events(win, quit);
+        time_start = get_time();
+#if THREADS_LEN
+        for (int i = 0; i < THREADS_LEN; i++)
+            win->thread_finished[i] = 0;
+        while (1)
+        {
+            int finished = 1;
+
+            for (int i = 0; i < THREADS_LEN; i++)
+            {
+                if (!win->thread_finished[i])
+                    finished = 0;
+            }
+            if (finished)
+                break;
+            usleep(1000);
+        }
+#endif
+        update_window(win);
+        frame_index++;
+        time_end = get_time();
+        std::string dynamicTitle = std::to_string(time_end - time_start) + std::string(" ms");
+        SDL_SetWindowTitle(win->window, dynamicTitle.c_str());
+    }
+    close_window(win);
+}
