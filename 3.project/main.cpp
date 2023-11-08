@@ -22,7 +22,7 @@ void add_objects(Win *win)
     // win->scene.objects[win->scene.pos++] = new_plan({+0, +0, -10}, 20, COLORS[win->scene.pos], Abs_); // backward
 #endif
 
-#if 1
+#if 0
     int i = 0;
     while (spheres[i].radius > 0.0)
     {
@@ -40,7 +40,7 @@ void add_objects(Win *win)
     // win->scene.objects[win->scene.pos - 1]->lightness = 1.0;
     // win->scene.objects[win->scene.pos++] = new_sphere((Vec3){-4, 0, -1}, 2, COLORS[win->scene.pos], Abs_);
     // win->scene.objects[win->scene.pos - 1]->lightness = 150.0;
-    // win->scene.objects[win->scene.pos++] = new_cylinder((Vec3){0, 0, -5}, 2, 20, (Vec3){0, 1, 0}, (Color){1, 0, 0}, Abs_);
+    win->scene.objects[win->scene.pos++] = new_cylinder((Vec3){0, 0, -2}, 5, 2, (Vec3){0, 1, 0}, (Color){1, 0, 0}, Abs_);
 }
 
 // dimentions

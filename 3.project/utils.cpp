@@ -185,6 +185,44 @@ typedef struct
     Win *win;
 } Multi;
 
+typedef Vec3 t_vec3;
+t_vec3 calc(t_vec3 l, char c, t_vec3 r)
+{
+    if (c == '+')
+        return ((t_vec3){.x = l.x + r.x, .y = l.y + r.y, .z = l.z + r.z});
+    if (c == '-')
+        return ((t_vec3){.x = l.x - r.x, .y = l.y - r.y, .z = l.z - r.z});
+    if (c == '*')
+        return ((t_vec3){.x = l.x * r.x, .y = l.y * r.y, .z = l.z * r.z});
+    if (c == '/')
+    {
+        if (r.x == 0.0 || r.y == 0.0 || r.z == 0.0)
+        {
+            printf("Error 2: dividing by 0\n");
+            exit(1);
+        }
+        return ((t_vec3){.x = l.x / r.x, .y = l.y / r.y, .z = l.z / r.z});
+    }
+
+    return ((t_vec3){});
+}
+
+t_vec3 scale(t_vec3 v, char c, float t)
+{
+    if (c == '*')
+        return ((t_vec3){.x = t * v.x, .y = t * v.y, .z = t * v.z});
+    if (c == '/')
+    {
+        if (t == 0)
+        {
+            printf("Error 1: dividing by 0\n");
+            exit(1);
+        }
+        return ((t_vec3){.x = v.x / t, .y = v.y / t, .z = v.z / t});
+    }
+    return ((t_vec3){});
+}
+
 // globals
 _Atomic int frame_index;
 int is_mouse_down;
@@ -732,7 +770,8 @@ float hit_rectangle(Ray *ray, Vec3 p1, Vec3 p2, Vec3 p3, Vec3 normal, float min,
     return t;
 }
 
-float hit_cylinder(Ray *ray, Vec3 center, float radius, float height, Vec3 normal, float min, float max)
+#if 1
+float hit_cylinder(Ray *ray, Vec3 center, float radius, float height, Vec3 normal, float min, float max, Vec3 *hit_normal)
 {
     Vec3 ran = {0, 0, 1};
     if (fabsf(dot(ran, normal)) >= 0.9f)
@@ -765,6 +804,10 @@ float hit_cylinder(Ray *ray, Vec3 center, float radius, float height, Vec3 norma
         float cal = fabsf(dot(normal, point_at(ray, x) - center));
         if (cal > height / 2)
             x = -1.0;
+
+        Vec3 p = point_at(ray, x);
+        *hit_normal = p - (dot(p - center, normal) * normal + center);
+
     }
 
     Vec3 c1 = center + (height / 2) * normal;
@@ -773,7 +816,10 @@ float hit_cylinder(Ray *ray, Vec3 center, float radius, float height, Vec3 norma
     {
         Vec3 p1 = point_at(ray, d1);
         if (length(p1 - c1) <= radius && (x < 0 || d1 < x))
+        {
             x = d1;
+            *hit_normal = normal;
+        }
     }
 
     Vec3 c2 = center - (height / 2) * normal;
@@ -782,12 +828,83 @@ float hit_cylinder(Ray *ray, Vec3 center, float radius, float height, Vec3 norma
     {
         Vec3 p1 = point_at(ray, d2);
         if (length(p1 - c2) <= radius && (x < 0 || d2 < x))
+        {
             x = d2;
+            *hit_normal = -1 * normal;
+        }
     }
     if (x < min || x > max)
         return -1;
     return x;
 }
+#else
+
+float hit_cylinder(Ray *ray, Obj cylin, float min, float max, Vec3 *hit_normal)
+{
+    Vec3 ran = (Vec3){0, 0, 1};
+    if (fabsf(dot(ran, cylin.normal)) >= 0.9f)
+        ran = (Vec3){1, 0, 0};
+    Vec3 u = unit_vector(cross(ran, cylin.normal));
+    Vec3 v = unit_vector(cross(cylin.normal, u));
+
+    float a = pow2(dot(u, ray->dir)) + pow2(dot(v, ray->dir));
+    float b = 2 * (dot(calc(ray->org, '-', cylin.center), u) * dot(u, ray->dir) + dot(calc(ray->org, '-', cylin.center), v) * dot(v, ray->dir));
+    float c = pow2(dot(calc(ray->org, '-', cylin.center), u)) + pow2(dot(calc(ray->org, '-', cylin.center), v)) - pow2(cylin.radius);
+
+    float delta = b * b - 4 * a * c;
+    float x = -1.0;
+    if (delta >= 0)
+    {
+        delta = sqrt(delta);
+        float x1 = (-b + delta) / (2 * a);
+        float x2 = (-b - delta) / (2 * a);
+
+        if (x1 < min || x1 > max)
+            x1 = -1.0;
+        if (x2 < min || x2 > max)
+            x2 = -1.0;
+
+        if (x1 == -1 || x2 < x1)
+            x = x2;
+        if (x2 == -1 || x1 < x2)
+            x = x1;
+        float cal = fabsf(dot(cylin.normal, calc(point_at(ray, x), '-', cylin.center)));
+        if (cal > cylin.height / 2)
+            x = -1.0;
+        Vec3 p = point_at(ray, x);
+        float d = dot(calc(p, '-', cylin.center));
+        *hit_normal = calc(calc(p, '-', scale(cylin.normal, '*', dot(calc(p, '-', cylin.center), cylin.normal))), '+', cylin.center);
+    }
+
+    Vec3 c1 = calc(cylin.center, '+', scale(cylin.normal, '*', cylin.height / 2));
+    float d1 = hit_plan(ray, cylin.normal, -dot(c1, cylin.normal), min, max);
+    if (d1 > 0)
+    {
+        Vec3 p1 = point_at(ray, d1);
+        if (length(calc(p1, '-', c1)) <= cylin.radius && (x < 0 || d1 < x))
+        {
+            x = d1;
+            *hit_normal = cylin.normal;
+        }
+    }
+
+    Vec3 c2 = calc(cylin.center, '-', scale(cylin.normal, '*', cylin.height / 2));
+    float d2 = hit_plan(ray, scale(cylin.normal, '*', -1), dot(c2, scale(cylin.normal, '*', -1)), min, max);
+    if (d2 > 0)
+    {
+        Vec3 p1 = point_at(ray, d2);
+        if (length(calc(p1, '-', c2)) <= cylin.radius && (x < 0 || d2 < x))
+        {
+            x = d2;
+            *hit_normal = scale(cylin.normal, '*', -1);
+        }
+    }
+    if (x < min || x > max)
+        return -1;
+    // printf("did hit cylinder\n");
+    return x;
+}
+#endif
 
 float hit_cone(Ray *ray, Vec3 center, Vec3 normal, float radius, float height, float min, float max)
 {
@@ -917,13 +1034,15 @@ Ray get_new_ray(Obj *obj, Ray *ray, float closest)
     return nray;
 }
 
-Vec3 light = {10, 10, 10};
+Vec3 light = {5, 5, 2};
 // Vec3 light_dir = {-1, -1, 0};
 
 Color ray_color(Win *win, Ray *ray, int max_depth)
 {
     Scene *scene = &win->scene;
-    Color color = {0, 0, 0};
+    Color ambient = (Color){.1, .2, .3};
+    // ambient = (Color){};
+    Color color = (Color){0};
     if (max_depth == 0)
         return color;
     // Color color = (Vec3){203.f / 255.999, 226.f / 255.999, 255.f / 255.999};
@@ -931,6 +1050,9 @@ Color ray_color(Win *win, Ray *ray, int max_depth)
     float closest = FLT_MAX;
     int hit_index = -1;
     float x = 0.0;
+
+    Vec3 normal;
+
     for (int i = 0; i < scene->pos; i++)
     {
         if (scene->objects[i]->type == plan_)
@@ -938,7 +1060,8 @@ Color ray_color(Win *win, Ray *ray, int max_depth)
         if (scene->objects[i]->type == sphere_)
             x = hit_sphere(ray, scene->objects[i]->center, scene->objects[i]->radius, ZERO, closest);
         else if (scene->objects[i]->type == cylinder_)
-            x = hit_cylinder(ray, scene->objects[i]->center, scene->objects[i]->radius, scene->objects[i]->height, scene->objects[i]->normal, ZERO, closest);
+            x = hit_cylinder(ray, scene->objects[i]->center, scene->objects[i]->radius, scene->objects[i]->height, scene->objects[i]->normal, ZERO, closest, &normal);
+            // x = hit_cylinder(ray, *(scene->objects[i]), ZERO, closest, &normal);
         else if (scene->objects[i]->type == triangle_)
             x = hit_triangle(ray, scene->objects[i]->p1, scene->objects[i]->p2, scene->objects[i]->p3, scene->objects[i]->normal, ZERO, closest);
         else if (scene->objects[i]->type == rectangle_)
@@ -1025,23 +1148,41 @@ Color ray_color(Win *win, Ray *ray, int max_depth)
             color = color * scene->objects[hit_index]->color;
         }
 #else
-        if (scene->objects[hit_index]->type == sphere_ || scene->objects[hit_index]->type == cone_)
+
+        Vec3 p = point_at(ray, closest);
+
+        switch (scene->objects[hit_index]->type)
         {
-            Vec3 normal = unit_vector(point_at(ray, closest) - scene->objects[hit_index]->center);
-            Vec3 light_dir = unit_vector(light - point_at(ray, closest));
-            float d = fmax(dot(normal, light_dir), 0);
-            color = color + d * (Vec3){1, 1, 1};
-        }
-        if (scene->objects[hit_index]->type == plan_)
+        case sphere_:
+        case cone_:
         {
-            Vec3 normal = scene->objects[hit_index]->normal;
-            Vec3 light_dir = unit_vector(light - point_at(ray, closest));
-            float d = fmax(dot(normal, light_dir), 0);
-            color = color + d * (Vec3){1, 1, 1};
+            normal = p - scene->objects[hit_index]->center;
+            break;
         }
-        color = color * scene->objects[hit_index]->color;
+        case cylinder_:
+        {
+            break;
+        }
+        case plan_:
+        {
+            normal = scene->objects[hit_index]->normal;
+            break;
+        }
+        default:
+        {
+            printf("Error in ray color\n");
+            exit(1);
+        }
+        }
+        normal = unit_vector(normal);
+        Vec3 light_dir = unit_vector(light - p);
+        float d = fmax(dot(normal, light_dir), 0);
+
+        color = ((Vec3){d, d, d} + ambient) * scene->objects[hit_index]->color;
 #endif
     }
+    else
+        color = ambient;
     return color;
 }
 
