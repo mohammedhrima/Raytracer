@@ -6,7 +6,7 @@
 /*   By: mhrima <mhrima@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/11/08 23:17:06 by mhrima            #+#    #+#             */
-/*   Updated: 2023/11/08 23:25:28 by mhrima           ###   ########.fr       */
+/*   Updated: 2023/11/09 18:39:49 by mhrima           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -36,7 +36,7 @@ void	check_solution(t_equ *equ, t_ray *ray, t_obj cylin, float max)
 		equ->sol = -1.0;
 	p = point_at(ray, equ->sol);
 	*(equ->hit_normal) = calc(calc(p, '-', scale(cylin.normal, '*', dot(calc(p,
-							'-', cylin.center), cylin.normal))), '+',
+							'-', cylin.center), cylin.normal))), '-',
 			cylin.center);
 }
 
