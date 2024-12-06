@@ -4,7 +4,8 @@
 **/*.ppm
 **/*.o
 **/*.a
-**/minirt
+**/exec
 **/.DS_Store
 .DS_Store
 .vscode
+/objects
