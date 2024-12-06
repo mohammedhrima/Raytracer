@@ -12,15 +12,17 @@ EXEC = exec
 all: $(EXEC)
 
 $(EXEC): $(OBJECTS)
-	mkdir -p $(OBJDIR)
 	$(CXX) $(CXXFLAGS) $(OBJECTS) -lSDL2 -o $(EXEC)
 
-$(OBJDIR)/%.o: %.cpp $(HEADERS)
-	mkdir -p $(OBJDIR)  
+$(OBJDIR)/%.o: %.cpp $(HEADERS) | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
 
 clean:
 	rm -rf $(OBJDIR) $(EXEC)
 
 re: clean all
-.PHONY: all clean
+
+.PHONY: all clean re

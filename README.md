@@ -2,6 +2,8 @@
 # Raytracing Project
 
 This project is a simple raytracer that uses SDL2 for rendering. It displays a scene in a window where you can interact with the view using the mouse and keyboard. The scene can be rotated, zoomed in and out, and navigated using the arrow keys.
+![Raytracing Preview](./Screenshot.png)
+
 
 ## Features
 
