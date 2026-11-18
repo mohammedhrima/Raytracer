@@ -1,353 +1,106 @@
-# Raytracer - 3D Scene Renderer 🎨✨
+# Raytracer
 
-A real-time 3D raytracing renderer built with C++ and SDL2. Create and visualize stunning 3D scenes with realistic lighting, shadows, and reflections. Interact with the scene using mouse and keyboard controls.
+A progressive path tracer written in C++98 with SDL2. It renders a scene of spheres, planes, triangles, rectangles, cylinders and cones with diffuse, mirror and glass materials. The image refines with every frame, and you can move the camera and objects while it renders.
 
-![Raytracing Preview](./Screenshot.png)
+![Rendered scene](./Screenshot.png)
 
-## 🎯 What Does It Do?
+## Features
 
-This raytracer renders 3D scenes in real-time with:
+- **Path tracing**: up to 5 bounces per path, with cosine-weighted diffuse scattering and direct light sampling through shadow rays
+- **Materials**: diffuse (Lambertian), perfect mirror, and glass (Snell refraction with Schlick reflectance)
+- **Shapes**: sphere, infinite plane, triangle (Möller–Trumbore), parallelogram, closed cylinder, closed cone
+- **Progressive rendering**: one sample per pixel per frame, averaged over time, with sub-pixel jitter for anti-aliasing
+- **Multithreading**: one worker per CPU core; rows are handed out through a shared atomic counter
+- **Interactive**: rotate, move and zoom the camera, and select and move objects; the image restarts on every change
 
-- **3D Rendering**: Visualize complex 3D scenes with spheres, planes, and other objects
-- **Realistic Lighting**: Accurate light simulation with shadows and reflections
-- **Interactive Controls**: Rotate, zoom, and navigate through the scene
-- **Real-Time Updates**: See changes instantly as you interact
-- **Ray-Object Intersection**: Precise mathematical calculations for realistic rendering
-- **Color and Materials**: Different materials with varying properties
-- **Ambient Occlusion**: Soft shadows for depth perception
+## Requirements
 
-## 👤 Who Is It For?
+- A C++ compiler (g++ or clang++)
+- SDL2 development package (provides headers, the library and `sdl2-config`)
+- make
 
-- Computer graphics students learning raytracing
-- Game developers understanding rendering techniques
-- 3D artists exploring rendering algorithms
-- Programmers interested in graphics programming
-- Anyone fascinated by computer-generated imagery
+| Platform | Install SDL2 |
+|---|---|
+| Ubuntu / Debian | `sudo apt install libsdl2-dev` |
+| Fedora | `sudo dnf install SDL2-devel` |
+| macOS | `brew install sdl2` |
 
-## 🚀 How to Use
-
-### Prerequisites
-
-- **C++ Compiler** (g++ or clang)
-- **SDL2 Library** - For window management and rendering
-- **Make** - Build automation tool
-
-### Installation
-
-#### 1. Install SDL2
-
-**macOS:**
-```bash
-brew install sdl2
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get update
-sudo apt-get install libsdl2-dev
-```
-
-**Fedora:**
-```bash
-sudo dnf install SDL2-devel
-```
-
-**Windows:**
-- Download SDL2 development libraries from [SDL2 Downloads](https://www.libsdl.org/download-2.0.php)
-- Extract and configure in your project
-
-#### 2. Clone and Build
+## Build and run
 
 ```bash
-# Clone the repository
 git clone https://github.com/mohammedhrima/Raytracer.git
 cd Raytracer
-
-# Build the project
 make
-
-# This creates the executable 'exec'
-```
-
-### Running the Raytracer
-
-```bash
 ./exec
 ```
 
-A window will open displaying the rendered 3D scene.
+| Command | Effect |
+|---|---|
+| `make` | Build `exec` |
+| `make clean` | Remove `objects/` and `exec` |
+| `make re` | Clean and rebuild |
 
-## 🎮 Interactive Controls
+Compiler flags: `-std=c++98 -O2 -Wall -Wextra -Werror -pthread`, plus `sdl2-config --cflags --libs`.
 
-### Mouse Controls
+The window title shows the time spent on the last frame and the number of samples accumulated so far.
 
-**Rotate the Scene:**
-- **Left-click and drag**: Rotate the camera around the scene
-- Move mouse left/right: Rotate horizontally
-- Move mouse up/down: Rotate vertically
+## Controls
 
-**Zoom:**
-- **Scroll wheel up**: Zoom in (get closer to objects)
-- **Scroll wheel down**: Zoom out (move away from objects)
+| Input | Action |
+|---|---|
+| Left mouse drag | Rotate the camera |
+| Mouse wheel, `+` / `-`, Page Up / Page Down | Move forward / backward along the view direction |
+| Arrow keys | Move the camera up, down, left, right |
+| `R` | Reset the camera |
+| `0`–`9` | Select an object (insertion order in `addDefaultObjects()`) |
+| Numpad `8` / `2` | Move the selected object up / down |
+| Numpad `4` / `6` | Move the selected object left / right |
+| Numpad `5` / `0` | Move the selected object away / closer |
+| `Esc` | Quit |
 
-### Keyboard Controls
-
-**Navigate the Scene:**
-- **↑ (Up Arrow)**: Move camera upward
-- **↓ (Down Arrow)**: Move camera downward
-- **← (Left Arrow)**: Move camera left
-- **→ (Right Arrow)**: Move camera right
-
-**Exit:**
-- **ESC**: Close the application
-
-## ✨ Features
-
-### Raytracing Techniques
-
-**Ray Generation:**
-- Generates rays from camera through each pixel
-- Calculates ray direction based on camera position and orientation
-
-**Intersection Testing:**
-- Ray-sphere intersection
-- Ray-plane intersection
-- Efficient intersection algorithms
-
-**Lighting Model:**
-- Diffuse lighting (Lambertian reflection)
-- Specular highlights
-- Ambient lighting
-- Shadow rays for realistic shadows
-
-**Color Calculation:**
-- RGB color mixing
-- Material properties (color, reflectivity)
-- Light intensity calculations
-
-### Scene Elements
-
-The default scene includes:
-- Multiple spheres of different sizes and colors
-- Ground plane
-- Light sources
-- Camera with adjustable position
-
-### Performance
-
-- Real-time rendering at interactive frame rates
-- Optimized intersection calculations
-- Efficient memory management
-
-## 🛠️ Technical Stack
-
-- **C++98**: Core programming language
-- **SDL2**: Simple DirectMedia Layer for graphics
-- **Mathematics**: Vector math, ray equations, intersection algorithms
-- **Make**: Build system
-
-## 📁 Project Structure
+## Project structure
 
 ```
 Raytracer/
-├── Makefile              # Build configuration
-├── README.md             # This file
-├── Screenshot.png        # Preview image
-├── header.hpp            # Header files and declarations
-├── main.cpp              # Entry point and main loop
-├── math.cpp              # Vector and matrix mathematics
-├── raytracing.cpp        # Core raytracing algorithms
-├── window.cpp            # SDL window management
-├── new.cpp               # Memory management
-└── SDL/                  # SDL2 header files
-    ├── SDL.h
-    ├── SDL_events.h
-    ├── SDL_video.h
-    └── ... (other SDL headers)
+├── Makefile
+└── src/
+    ├── main.cpp              Window, scene and camera setup, main loop, input
+    ├── math/
+    │   ├── Vec3.hpp          Vec3, Ray, vector math, reflect / refract
+    │   └── Random.hpp        Per-thread PCG random number generator
+    ├── scene/
+    │   ├── Shape.hpp/.cpp    Material, Hit, and every shape's intersection code
+    │   └── Scene.hpp/.cpp    Shape list, light, closest-hit and shadow queries, default scene
+    └── render/
+        ├── Camera.hpp/.cpp   Pinhole camera
+        ├── Renderer.hpp/.cpp Path tracer and worker threads
+        └── Window.hpp/.cpp   SDL window and streaming texture
 ```
 
-## 🔧 Building and Compilation
+## How it works
 
-### Build Commands
+1. **Camera rays.** For each pixel, `Camera::rayFor` shoots a ray from the camera through a random point inside the pixel.
+2. **Intersection.** `Scene::closestHit` tests every shape and keeps the nearest hit. Each shape returns the hit distance, point, and a normal that faces the incoming ray.
+3. **Shading.** `Renderer::trace` follows the path:
+   - **Diffuse**: adds the light from the point light if a shadow ray reaches it, then bounces in a random cosine-weighted direction.
+   - **Mirror**: reflects the ray.
+   - **Glass**: reflects or refracts, picked at random using Schlick's approximation. Total internal reflection is handled.
+   - **Miss**: adds the sky color.
+4. **Accumulation.** Each sample is added to a per-pixel sum. The displayed color is the average, gamma-corrected (gamma 2).
 
-```bash
-# Compile the project
-make
+## Customization
 
-# Clean build files
-make clean
+- **Scene**: edit `Scene::addDefaultObjects()` in `src/scene/Scene.cpp` to add or change shapes and materials, and change the light in the `Scene` constructor.
+- **Camera**: edit the start position and field of view in `src/render/Camera.cpp`.
+- **Quality and speed**: `MAX_BOUNCES` and the sky colors are at the top of `src/render/Renderer.cpp`. The window size is set in `src/main.cpp`.
 
-# Rebuild everything
-make re
-```
+## Troubleshooting
 
-### Compilation Details
+- **`sdl2-config: not found` or `SDL.h: No such file or directory`**: the SDL2 development package is missing. Install it as shown in [Requirements](#requirements).
+- **Image is noisy**: this is expected right after a change. Leave the camera still and the noise fades as samples accumulate.
 
-The Makefile compiles these source files:
-- `main.cpp` - Application entry point
-- `math.cpp` - Mathematical operations
-- `raytracing.cpp` - Raytracing algorithms
-- `window.cpp` - Window and event handling
-- `new.cpp` - Memory management
+## References
 
-Flags used:
-- `-std=c++98` - C++98 standard
-- `-Wall -Wextra -Werror` - Strict warnings
-- `-lSDL2` - Link SDL2 library
-
-## 🎨 Understanding Raytracing
-
-### How Raytracing Works
-
-1. **Camera Setup**: Define camera position and viewing direction
-2. **Ray Generation**: For each pixel, create a ray from camera through pixel
-3. **Intersection Testing**: Check if ray hits any objects in scene
-4. **Shading**: Calculate color based on:
-   - Object material
-   - Light sources
-   - Shadows
-   - Reflections
-5. **Pixel Coloring**: Set pixel to calculated color
-
-### Ray Equation
-
-```
-Ray(t) = Origin + t * Direction
-```
-
-Where:
-- `Origin` = Camera position
-- `Direction` = Ray direction through pixel
-- `t` = Distance along ray
-
-### Sphere Intersection
-
-Solving the equation:
-```
-|Ray(t) - SphereCenter|² = SphereRadius²
-```
-
-Results in a quadratic equation that determines if and where the ray hits the sphere.
-
-## 🎓 Learning Outcomes
-
-This project demonstrates:
-- **Ray-object intersection algorithms**
-- **3D vector mathematics**
-- **Lighting models and shading**
-- **Real-time graphics programming**
-- **SDL2 for window management**
-- **Event handling (mouse, keyboard)**
-- **Performance optimization**
-
-## 🔧 Customization
-
-### Modify the Scene
-
-Edit `raytracing.cpp` to:
-- Add more spheres
-- Change sphere positions and sizes
-- Modify colors and materials
-- Add different light sources
-- Change background color
-
-### Adjust Camera
-
-Edit `main.cpp` to:
-- Change initial camera position
-- Modify field of view
-- Adjust movement speed
-- Change rotation sensitivity
-
-### Enhance Rendering
-
-Possible improvements:
-- Add more object types (cubes, cylinders)
-- Implement reflections and refractions
-- Add texture mapping
-- Implement anti-aliasing
-- Add depth of field effects
-
-## 📊 Performance Tips
-
-**Optimize Rendering:**
-- Reduce window resolution for faster rendering
-- Limit number of objects in scene
-- Use bounding volumes for complex objects
-- Implement spatial data structures (BVH, octree)
-
-**Improve Quality:**
-- Increase ray samples per pixel
-- Add more light bounces
-- Implement global illumination
-- Use higher precision calculations
-
-## 🐛 Troubleshooting
-
-**SDL2 not found:**
-```bash
-# Verify SDL2 installation
-sdl2-config --version
-
-# If not found, reinstall SDL2
-```
-
-**Compilation errors:**
-```bash
-# Clean and rebuild
-make clean
-make
-```
-
-**Window doesn't open:**
-- Check if SDL2 is properly installed
-- Verify display is available
-- Check for error messages in terminal
-
-**Slow performance:**
-- Reduce window size
-- Simplify scene (fewer objects)
-- Close other applications
-
-## 📈 Future Enhancements
-
-- [ ] Add more primitive shapes (cubes, cylinders, cones)
-- [ ] Implement reflection and refraction
-- [ ] Add texture mapping
-- [ ] Implement anti-aliasing (supersampling)
-- [ ] Add global illumination
-- [ ] Support for loading 3D models (OBJ files)
-- [ ] Path tracing for photorealistic rendering
-- [ ] GPU acceleration with CUDA or OpenCL
-- [ ] Scene file format for easy scene creation
-- [ ] Real-time scene editing
-
-## 🤝 Contributing
-
-Contributions welcome! Great project for learning:
-- Computer graphics
-- Raytracing algorithms
-- C++ programming
-- SDL2 library
-
-## 📚 Resources
-
-**Learn More About Raytracing:**
 - [Ray Tracing in One Weekend](https://raytracing.github.io/)
-- [Scratchapixel - Ray Tracing](https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-ray-tracing)
-- [SDL2 Documentation](https://wiki.libsdl.org/)
-
-**Mathematics:**
-- Vector operations
-- Ray-sphere intersection
-- Lighting equations (Phong, Blinn-Phong)
-
-## 📄 License
-
-This project is open source and available for educational purposes.
-
-## 🙏 Acknowledgments
-
-- SDL2 team for the excellent graphics library
-- Computer graphics community for raytracing resources
-- Classic raytracing papers and books
+- [Scratchapixel](https://www.scratchapixel.com/)
+- [SDL2 documentation](https://wiki.libsdl.org/)
